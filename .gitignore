@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+server/node_modules/
+
+# environment files
+server/.env
+
+# logs
+logs/
+*.log
+
+# uploaded template assets
+public/template-assets/**/*
+!public/template-assets/**/
+!public/template-assets/**/.gitkeep
