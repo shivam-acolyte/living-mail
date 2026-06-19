@@ -141,6 +141,7 @@ const fetchAllDeliveryStatusRecords = async ({ url, headers }) => {
   let totalPages = 1;
 
   do {
+    console.log(`DELIVERY STATUS SYNC: Fetching page ${page}...`);
     const payload = await fetchDeliveryStatusPage({
       url,
       headers,
@@ -154,6 +155,7 @@ const fetchAllDeliveryStatusRecords = async ({ url, headers }) => {
     }
 
     records.push(...pageRecords);
+    console.log(`DELIVERY STATUS SYNC: Page ${page} successfully fetched ${pageRecords.length} records`);
 
     totalPages = Number(payload?.totalPages) || (
       pageRecords.length === pageLimit ? page + 1 : page
@@ -609,7 +611,9 @@ export const syncDeliveryStatuses = async () => {
     headers["x-api-key"] = process.env.MAIL_STATUS_API_KEY;
   }
 
+  console.log(`DELIVERY STATUS SYNC START: Fetching from ${url}`);
   const records = await fetchAllDeliveryStatusRecords({ url, headers });
+  console.log(`DELIVERY STATUS SYNC FETCHED: Received ${records.length} total records to process`);
 
   const result = {
     fetched: records.length,
@@ -642,16 +646,24 @@ export const syncDeliveryStatuses = async () => {
 
       if (!sentEvent && !event.trackingId && !event.messageId && !event.email) {
         const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
-        result.deliveryInserted += deliveryEvent ? 1 : 0;
-        result.skipped += deliveryEvent ? 0 : 1;
+        if (deliveryEvent) {
+          console.log(`DELIVERY STATUS SYNC: Created unmatched event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
+          result.deliveryInserted += 1;
+        } else {
+          result.skipped += 1;
+        }
         result.unmatched += 1;
         continue;
       }
 
       if (event.eventType === "delivered") {
         const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
-        result.deliveryInserted += deliveryEvent ? 1 : 0;
-        result.skipped += 1;
+        if (deliveryEvent) {
+          console.log(`DELIVERY STATUS SYNC: Created delivered event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
+          result.deliveryInserted += 1;
+        } else {
+          result.skipped += 1;
+        }
         continue;
       }
 
@@ -662,11 +674,13 @@ export const syncDeliveryStatuses = async () => {
         continue;
       }
 
+      console.log(`DELIVERY STATUS SYNC: Found new event "${event.eventType}" (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
       const trackingEvent = await Tracking.create(buildTrackingEvent(event, sentEvent));
       const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent, trackingEvent);
       result.deliveryInserted += deliveryEvent ? 1 : 0;
       result.inserted += 1;
     } catch (error) {
+      console.error(`DELIVERY STATUS SYNC RECORD ERROR:`, error.message, record);
       result.errors.push(error.message);
     }
   }
