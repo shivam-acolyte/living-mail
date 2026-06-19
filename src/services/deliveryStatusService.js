@@ -612,11 +612,9 @@ export const syncDeliveryStatuses = async () => {
   }
 
   console.log(`DELIVERY STATUS SYNC START: Fetching from ${url}`);
-  const records = await fetchAllDeliveryStatusRecords({ url, headers });
-  console.log(`DELIVERY STATUS SYNC FETCHED: Received ${records.length} total records to process`);
 
   const result = {
-    fetched: records.length,
+    fetched: 0,
     processed: 0,
     deliveryInserted: 0,
     inserted: 0,
@@ -625,65 +623,123 @@ export const syncDeliveryStatuses = async () => {
     errors: []
   };
 
-  for (const record of records) {
+  const pageLimit = Math.max(1, DELIVERY_STATUS_PAGE_LIMIT);
+  let page = 1;
+  let totalPages = 1;
+  let stopSync = false;
+
+  do {
+    console.log(`DELIVERY STATUS SYNC: Fetching page ${page}...`);
+    let payload;
     try {
-      const event = normalizeEvent(record);
-
-      if (!event) {
-        result.skipped += 1;
-        continue;
-      }
-
-      result.processed += 1;
-
-      const sentMatch = buildSentMatch(event);
-      const sentEvent = sentMatch
-        ? await Tracking.findOne({
-            ...sentMatch,
-            eventType: "sent"
-          }).sort({ createdAt: -1 }).lean()
-        : null;
-
-      if (!sentEvent && !event.trackingId && !event.messageId && !event.email) {
-        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
-        if (deliveryEvent) {
-          console.log(`DELIVERY STATUS SYNC: Created unmatched event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
-          result.deliveryInserted += 1;
-        } else {
-          result.skipped += 1;
-        }
-        result.unmatched += 1;
-        continue;
-      }
-
-      if (event.eventType === "delivered") {
-        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
-        if (deliveryEvent) {
-          console.log(`DELIVERY STATUS SYNC: Created delivered event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
-          result.deliveryInserted += 1;
-        } else {
-          result.skipped += 1;
-        }
-        continue;
-      }
-
-      if (await hasExistingEvent(event, sentEvent)) {
-        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
-        result.deliveryInserted += deliveryEvent ? 1 : 0;
-        result.skipped += 1;
-        continue;
-      }
-
-      console.log(`DELIVERY STATUS SYNC: Found new event "${event.eventType}" (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
-      const trackingEvent = await Tracking.create(buildTrackingEvent(event, sentEvent));
-      const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent, trackingEvent);
-      result.deliveryInserted += deliveryEvent ? 1 : 0;
-      result.inserted += 1;
-    } catch (error) {
-      console.error(`DELIVERY STATUS SYNC RECORD ERROR:`, error.message, record);
-      result.errors.push(error.message);
+      payload = await fetchDeliveryStatusPage({
+        url,
+        headers,
+        page,
+        limit: pageLimit
+      });
+    } catch (err) {
+      console.error(`DELIVERY STATUS SYNC: Fetching page ${page} failed:`, err.message);
+      result.errors.push(`Page ${page} fetch failed: ${err.message}`);
+      break;
     }
-  }
+
+    const pageRecords = toArrayPayload(payload);
+    if (!Array.isArray(pageRecords)) {
+      result.errors.push(`Page ${page} response is not an array`);
+      break;
+    }
+
+    console.log(`DELIVERY STATUS SYNC: Page ${page} successfully fetched ${pageRecords.length} records`);
+    result.fetched += pageRecords.length;
+
+    if (pageRecords.length === 0) {
+      break;
+    }
+
+    let pageSkippedCount = 0;
+    let pageProcessedCount = 0;
+
+    for (const record of pageRecords) {
+      try {
+        const event = normalizeEvent(record);
+
+        if (!event) {
+          result.skipped += 1;
+          pageSkippedCount += 1;
+          continue;
+        }
+
+        result.processed += 1;
+        pageProcessedCount += 1;
+
+        const sentMatch = buildSentMatch(event);
+        const sentEvent = sentMatch
+          ? await Tracking.findOne({
+              ...sentMatch,
+              eventType: "sent"
+            }).sort({ createdAt: -1 }).lean()
+          : null;
+
+        if (!sentEvent && !event.trackingId && !event.messageId && !event.email) {
+          const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+          if (deliveryEvent) {
+            console.log(`DELIVERY STATUS SYNC: Created unmatched event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
+            result.deliveryInserted += 1;
+          } else {
+            result.skipped += 1;
+            pageSkippedCount += 1;
+          }
+          result.unmatched += 1;
+          continue;
+        }
+
+        if (event.eventType === "delivered") {
+          const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+          if (deliveryEvent) {
+            console.log(`DELIVERY STATUS SYNC: Created delivered event (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
+            result.deliveryInserted += 1;
+          } else {
+            result.skipped += 1;
+            pageSkippedCount += 1;
+          }
+          continue;
+        }
+
+        if (await hasExistingEvent(event, sentEvent)) {
+          const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+          if (deliveryEvent) {
+            result.deliveryInserted += 1;
+          } else {
+            result.skipped += 1;
+            pageSkippedCount += 1;
+          }
+          continue;
+        }
+
+        console.log(`DELIVERY STATUS SYNC: Found new event "${event.eventType}" (ID: ${event.providerEventId || "N/A"}, Email: ${event.email || "N/A"})`);
+        const trackingEvent = await Tracking.create(buildTrackingEvent(event, sentEvent));
+        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent, trackingEvent);
+        result.deliveryInserted += deliveryEvent ? 1 : 0;
+        result.inserted += 1;
+      } catch (error) {
+        console.error(`DELIVERY STATUS SYNC RECORD ERROR:`, error.message, record);
+        result.errors.push(error.message);
+      }
+    }
+
+    // Early exit check: If all records processed on this page were duplicates, we have caught up
+    if (pageProcessedCount > 0 && pageSkippedCount === pageProcessedCount) {
+      console.log(`DELIVERY STATUS SYNC: All ${pageProcessedCount} records on page ${page} already exist in DB. Stopping sync.`);
+      stopSync = true;
+      break;
+    }
+
+    totalPages = Number(payload?.totalPages) || (
+      pageRecords.length === pageLimit ? page + 1 : page
+    );
+    page += 1;
+  } while (page <= totalPages && !stopSync);
 
   return result;
 };
