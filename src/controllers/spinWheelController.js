@@ -1,5 +1,6 @@
 import Tracking from "../models/Tracking.js";
 import Contact from "../models/Contact.js";
+import AmpTemplate from "../models/AmpTemplate.js";
 import getRenderData from "../utils/renderData.js";
 import { decodeLegacyTrackingId } from "../utils/tracking.js";
 import {
@@ -7,6 +8,7 @@ import {
   notePostgresConnectionFailure
 } from "../config/postgres.js";
 
+// Helper functions (identical copy from trackingController.js to leave it clean and untouched)
 const parseSubmittedBody = (body) => {
   if (!body) {
     return {};
@@ -136,14 +138,6 @@ const mergeTrackingContext = (baseContext, requestContext) => ({
   )
 });
 
-const getClickedDomain = (url) => {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "Unknown";
-  }
-};
-
 const getBotSignal = (req) => {
   const userAgent = (req.headers["user-agent"] || "").toLowerCase();
   const botPatterns = [
@@ -209,127 +203,7 @@ const syncContactActivity = async (email, update = {}) => {
   }
 };
 
-
-/* OPEN TRACKING */
-
-export const trackHandler = (emailType) => {
-
-  return async (req, res) => {
-
-    try {
-
-      const identity = await getTrackingIdentity(req.params.id);
-      const context = mergeTrackingContext(
-        identity,
-        getTrackingContext(req)
-      );
-      const botSignal = getBotSignal(req);
-
-      await Tracking.create({
-
-        trackingId: req.params.id,
-
-        email: context.email,
-
-        ...context,
-
-        emailType,
-
-        eventType: "open",
-
-        openedAt: new Date(),
-
-        render: getRenderData(req),
-
-        ...botSignal
-
-      });
-
-      await syncContactActivity(context.email);
-
-      const pixel = Buffer.from(
-        "R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
-        "base64"
-      );
-
-      res.set({
-
-        "Content-Type": "image/gif",
-
-        "Cache-Control":
-          "no-store, no-cache, must-revalidate"
-
-      });
-
-      return res.send(pixel);
-
-    } catch (err) {
-
-      console.error(err);
-
-      return res.status(500).send("Tracking Error");
-
-    }
-
-  };
-
-};
-
-
-// HTML CLICK TRACKING
-
-export const clickTracking = async (req, res) => {
-
-  try {
-
-    const identity = await getTrackingIdentity(req.params.id);
-    const context = mergeTrackingContext(
-      identity,
-      getTrackingContext(req)
-    );
-    const botSignal = getBotSignal(req);
-
-    await Tracking.create({
-
-      trackingId: req.params.id,
-
-      email: context.email,
-
-      ...context,
-
-      eventType: "click",
-
-      clickedAt: new Date(),
-
-      render: getRenderData(req),
-
-      clickedUrl: req.query.url,
-
-      clickedDomain: getClickedDomain(req.query.url),
-
-      ...botSignal
-
-    });
-
-    await syncContactActivity(context.email);
-
-    return res.redirect(req.query.url);
-
-  } catch (err) {
-
-    console.error(err);
-
-    return res
-      .status(500)
-      .send("Click Tracking Error");
-
-  }
-
-};
-
-/* AMP FORM */
-
-export const ampFormTracking = async (req, res) => {
+export const handleSpinWheelAmpSubmit = async (req, res) => {
   try {
     setAmpResponseHeaders(req, res);
 
@@ -360,40 +234,86 @@ export const ampFormTracking = async (req, res) => {
     );
     const botSignal = getBotSignal(req);
 
-    console.log("AMP FORM BODY:", {
+    console.log("AMP SPIN WHEEL SUBMIT BODY:", {
       contentType: req.headers["content-type"],
       body,
       formData
     });
+
+    let spinWheelBlock = null;
+    let options = [
+      { label: "10% Off", value: "10_off", probability: 10 },
+      { label: "Free Shipping", value: "free_shipping", probability: 10 },
+      { label: "Try Again", value: "try_again", probability: 10 },
+      { label: "20% Off", value: "20_off", probability: 10 },
+      { label: "Gift Card", value: "gift_card", probability: 10 },
+      { label: "No Luck", value: "no_luck", probability: 10 }
+    ];
+
+    if (templateId || templateSlug) {
+      const savedTemplate = templateId
+        ? await AmpTemplate.findOne({ _id: templateId, isActive: true })
+        : templateSlug
+        ? await AmpTemplate.findOne({ slug: templateSlug, isActive: true })
+        : null;
+
+      if (savedTemplate?.sourceJson?.blocks) {
+        if (body.spin_wheel_block_id) {
+          spinWheelBlock = savedTemplate.sourceJson.blocks.find(
+            (b) => b.type === "spinWheel" && b.id === body.spin_wheel_block_id
+          );
+        }
+        if (!spinWheelBlock) {
+          spinWheelBlock = savedTemplate.sourceJson.blocks.find(
+            (b) => b.type === "spinWheel"
+          );
+        }
+      }
+    }
+
+    if (spinWheelBlock?.props?.options) {
+      options = spinWheelBlock.props.options;
+    }
+
+    // Weighted random selection algorithm
+    const totalWeight = options.reduce((sum, opt) => sum + Number(opt.probability || 1), 0);
+    let r = Math.random() * totalWeight;
+    let selectedIndex = 0;
+    for (let i = 0; i < options.length; i++) {
+      r -= Number(options[i].probability || 1);
+      if (r <= 0) {
+        selectedIndex = i;
+        break;
+      }
+    }
+    const wonPrize = options[selectedIndex];
+    const prizeText = wonPrize.label || wonPrize.value;
+
+    const degreesPerSegment = 360 / options.length;
+    const extraTurns = 6;
+    const targetDegrees = extraTurns * 360 + (options.length - selectedIndex) * degreesPerSegment - (degreesPerSegment / 2);
+
+    const updatedFormData = {
+      ...formData,
+      spin_result: prizeText
+    };
 
     // CLICK TRACKING
     await Tracking.create({
-
       trackingId,
-
       email: context.email,
-
       ...context,
-
       emailType: "amp",
-
       eventType: "click",
-
       clickedAt: new Date(),
-
       render: getRenderData(req),
-
-      clickedUrl: "AMP Submit Button",
-
-      clickedDomain: "AMP Submit Button",
-
+      clickedUrl: "AMP Spin the Wheel",
+      clickedDomain: "AMP Spin the Wheel",
       ...botSignal,
-
       createdAt: new Date()
-
     });
 
-    const formTrackingEvent = await Tracking.create({
+    await Tracking.create({
       trackingId,
       email: context.email,
       ...context,
@@ -402,7 +322,7 @@ export const ampFormTracking = async (req, res) => {
       formSubmitAt: new Date(),
       render: getRenderData(req),
       ...botSignal,
-      formSubmission: formData,
+      formSubmission: updatedFormData,
       createdAt: new Date()
     });
 
@@ -410,102 +330,19 @@ export const ampFormTracking = async (req, res) => {
 
     return res.json({
       success: true,
-      source: "AMP",
-      message: "AMP form submitted successfully"
+      prizeLabel: prizeText,
+      prizeIndex: selectedIndex,
+      rotation: targetDegrees
     });
 
   } catch (err) {
-    console.error("AMP FORM ERROR:", err);
+    console.error("AMP SPIN WHEEL ERROR:", err);
     setAmpResponseHeaders(req, res);
 
     return res.status(500).json({
       success: false,
       source: "AMP",
-      message: "Form submission failed"
-    });
-  }
-};
-
-/* HTML FORM */
-
-export const htmlFormTracking = async (req, res) => {
-
-  try {
-
-    res.setHeader("Access-Control-Allow-Origin", "*");
-
-    res.setHeader(
-      "AMP-Access-Control-Allow-Source-Origin",
-      process.env.API_URL
-    );
-
-    res.setHeader(
-      "Access-Control-Expose-Headers",
-      "AMP-Access-Control-Allow-Source-Origin"
-    );
-
-    const trackingId = req.params.id;
-
-    const identity = await getTrackingIdentity(trackingId);
-
-    const body = parseSubmittedBody(req.body);
-
-    const {
-      subject,
-      emailType,
-      campaignName,
-      campaignType,
-      templateId,
-      templateSlug,
-      formData
-    } = splitTrackingFields(body);
-
-    const context = mergeTrackingContext(
-      identity,
-      getTrackingContext(req, {
-        subject,
-        campaignName,
-        campaignType,
-        templateId,
-        templateSlug
-      })
-    );
-    const botSignal = getBotSignal(req);
-
-    console.log("HTML/AMP WEB FORM BODY:", {
-      contentType: req.headers["content-type"],
-      body,
-      formData
-    });
-
-    const formTrackingEvent = await Tracking.create({
-      trackingId,
-      email: context.email,
-      ...context,
-      emailType: emailType || "html",
-      eventType: "form_submit",
-      formSubmitAt: new Date(),
-      render: getRenderData(req),
-      ...botSignal,
-      formSubmission: formData,
-      createdAt: new Date()
-    });
-
-    await syncContactActivity(context.email);
-    return res.json({
-
-      success: true,
-
-      message: "✅ Form Submitted Successfully"
-
-    });
-
-  } catch (err) {
-    console.error("HTML FORM ERROR:", err);
-    console.error(err.stack);
-    return res.status(500).json({
-      success: false,
-      message: "❌ Form Tracking Error"
+      message: "Spin wheel submission failed"
     });
   }
 };

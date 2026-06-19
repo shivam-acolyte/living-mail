@@ -94,12 +94,18 @@ const ampWebTemplate = (trackingId, subject, campaignName, campaignType) => {
 
     .container{
       width:100%;
-      max-width:none;
+      max-width:840px;
       margin:auto;
       background:#ffffff;
       border-radius:12px;
       overflow:hidden;
       box-shadow:0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .banner-wrapper{
+      width:100%;
+      max-width:720px;
+      margin:0 auto;
     }
 
     .form-wrapper{
@@ -181,14 +187,16 @@ const ampWebTemplate = (trackingId, subject, campaignName, campaignType) => {
 
   <div class="container">
 
-    <amp-img
-      src="https://img.mmdocdn.com/mailmodo/image/upload/ar_946:1600,c_crop/v1756704504/editor/p/62dc8626-eafe-4c68-a935-861517fb9628/b20f300699305eadf65f9988cb020bb2_cd9fdw.jpg"
-      width="600"
-      height="850"
-      layout="responsive"
-      alt="Banner"
-    >
-    </amp-img>
+    <div class="banner-wrapper">
+      <amp-img
+        src="https://img.mmdocdn.com/mailmodo/image/upload/ar_946:1600,c_crop/v1756704504/editor/p/62dc8626-eafe-4c68-a935-861517fb9628/b20f300699305eadf65f9988cb020bb2_cd9fdw.jpg"
+        width="720"
+        height="1020"
+        layout="responsive"
+        alt="Banner"
+      >
+      </amp-img>
+    </div>
 
     <div class="form-wrapper">
 

@@ -9,8 +9,36 @@ const __dirname = path.dirname(__filename);
 
 export let postgres = null;
 export let isPostgresConfigured = false;
+let postgresBackoffUntil = 0;
 
 const getConnectionString = () => process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+export const isPostgresConnectionTimeout = (error) => {
+  return String(error?.message || "").toLowerCase().includes("timeout exceeded when trying to connect");
+};
+
+export const notePostgresConnectionFailure = (error) => {
+  if (!isPostgresConnectionTimeout(error)) {
+    return false;
+  }
+
+  postgresBackoffUntil = Date.now() + Number(process.env.POSTGRES_TIMEOUT_BACKOFF_MS || 30000);
+  return true;
+};
+
+export const isPostgresBackedOff = () => Date.now() < postgresBackoffUntil;
+
+export const getPostgresPoolStats = () => {
+  if (!postgres) {
+    return null;
+  }
+
+  return {
+    totalCount: postgres.totalCount,
+    idleCount: postgres.idleCount,
+    waitingCount: postgres.waitingCount
+  };
+};
 
 const getPostgres = () => {
   if (postgres) {
@@ -29,12 +57,22 @@ const getPostgres = () => {
       max: Number(process.env.POSTGRES_POOL_MAX || 10),
       idleTimeoutMillis: Number(process.env.POSTGRES_IDLE_TIMEOUT_MS || 30000),
       connectionTimeoutMillis: Number(process.env.POSTGRES_CONNECTION_TIMEOUT_MS || 15000),
+      statement_timeout: Number(process.env.POSTGRES_STATEMENT_TIMEOUT_MS || 30000),
+      query_timeout: Number(process.env.POSTGRES_QUERY_TIMEOUT_MS || 30000),
       keepAlive: true
   });
 
   postgres.on("error", (error) => {
     console.error("POSTGRES POOL ERROR:", error.message);
   });
+
+  setInterval(() => {
+    const stats = getPostgresPoolStats();
+
+    if (stats?.waitingCount > 0) {
+      console.warn("POSTGRES POOL WAITING:", stats);
+    }
+  }, Number(process.env.POSTGRES_POOL_LOG_INTERVAL_MS || 30000)).unref();
 
   return postgres;
 };

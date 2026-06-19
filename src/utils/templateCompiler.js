@@ -8,6 +8,22 @@ const escapeHtml = (value) => {
 
 const escapeAttr = escapeHtml;
 
+const appendUtmToUrl = (url, campaignNameVar = "{{campaignName}}", utmContent = "email_visit_button", templateSlugVar = "{{templateSlug}}") => {
+  if (!url || typeof url !== "string") return url;
+  if (url.startsWith("{{") || url.startsWith("mailto:") || url.startsWith("tel:") || url.startsWith("#")) {
+    return url;
+  }
+  try {
+    if (url.includes("utm_campaign")) {
+      return url;
+    }
+    const utmParams = `utm_source=email&utm_medium=email&utm_campaign=${campaignNameVar}&utm_id=${templateSlugVar}&utm_content=${utmContent}`;
+    return url.includes("?") ? `${url}&${utmParams}` : `${url}?${utmParams}`;
+  } catch (e) {
+    return url;
+  }
+};
+
 const px = (value, fallback) => {
   const number = Number(value);
   return Number.isFinite(number) ? `${number}px` : fallback;
@@ -26,16 +42,25 @@ const numberFrom = (...values) => {
 
 const DESKTOP_EMAIL_WIDTH = 500;
 const DESKTOP_IMAGE_WIDTH = 500;
+const HOSTED_FORM_BANNER_WIDTH = 720;
+const HOSTED_FORM_WIDTH = 840;
 const SMARTPHONE_BREAKPOINT = 480;
 
 const getImageSize = (props = {}, theme = {}) => {
   const shellWidth = Math.min(Number(theme.width) || DESKTOP_EMAIL_WIDTH, DESKTOP_EMAIL_WIDTH);
   const defaultDesktopImageWidth = Math.min(shellWidth, DESKTOP_IMAGE_WIDTH);
-  const width = Math.min(numberFrom(props.width, props.imageWidth, props.bannerWidth, defaultDesktopImageWidth) || defaultDesktopImageWidth, shellWidth);
+  const fitToBody = props.fullWidth !== false && props.fitToBody !== false;
+  const requestedWidth = numberFrom(props.width, props.imageWidth, props.bannerWidth);
+  const width = fitToBody
+    ? defaultDesktopImageWidth
+    : Math.min(requestedWidth || defaultDesktopImageWidth, shellWidth);
   const requestedHeight = numberFrom(props.height, props.imageHeight, props.bannerHeight);
-  const maxHeight = Math.round(width * 0.75);
+  const requestedRatioWidth = requestedWidth || width;
+  const scaledHeight = requestedHeight
+    ? Math.round(requestedHeight * (width / requestedRatioWidth))
+    : null;
   const height = requestedHeight
-    ? Math.min(requestedHeight, maxHeight)
+    ? scaledHeight
     : Math.round(width * 0.5);
 
   return {
@@ -46,6 +71,52 @@ const getImageSize = (props = {}, theme = {}) => {
 
 const firstValue = (...values) => {
   return values.find((value) => value !== undefined && value !== null && value !== "");
+};
+
+const getBoxPadding = (props = {}, fallback = "0") => {
+  const top = props.paddingTop;
+  const right = props.paddingRight;
+  const bottom = props.paddingBottom;
+  const left = props.paddingLeft;
+  const hasSidePadding = [top, right, bottom, left].some((value) => value !== undefined && value !== "");
+
+  if (hasSidePadding) {
+    const t = top !== undefined && top !== "" ? (Number.isFinite(Number(top)) ? `${top}px` : top) : "0px";
+    const r = right !== undefined && right !== "" ? (Number.isFinite(Number(right)) ? `${right}px` : right) : "0px";
+    const b = bottom !== undefined && bottom !== "" ? (Number.isFinite(Number(bottom)) ? `${bottom}px` : bottom) : "0px";
+    const l = left !== undefined && left !== "" ? (Number.isFinite(Number(left)) ? `${left}px` : left) : "0px";
+    return `${t} ${r} ${b} ${l}`;
+  }
+
+  const padding = props.padding;
+  if (padding !== undefined && padding !== "") {
+    return Number.isFinite(Number(padding)) ? `${padding}px` : padding;
+  }
+
+  return fallback;
+};
+
+const getBoxMargin = (props = {}, fallback = "0") => {
+  const top = props.marginTop;
+  const right = props.marginRight;
+  const bottom = props.marginBottom;
+  const left = props.marginLeft;
+  const hasSideMargin = [top, right, bottom, left].some((value) => value !== undefined && value !== "");
+
+  if (hasSideMargin) {
+    const t = top !== undefined && top !== "" ? (Number.isFinite(Number(top)) ? `${top}px` : top) : "0px";
+    const r = right !== undefined && right !== "" ? (Number.isFinite(Number(right)) ? `${right}px` : right) : "0px";
+    const b = bottom !== undefined && bottom !== "" ? (Number.isFinite(Number(bottom)) ? `${bottom}px` : bottom) : "0px";
+    const l = left !== undefined && left !== "" ? (Number.isFinite(Number(left)) ? `${left}px` : left) : "0px";
+    return `${t} ${r} ${b} ${l}`;
+  }
+
+  const margin = props.margin;
+  if (margin !== undefined && margin !== "") {
+    return Number.isFinite(Number(margin)) ? `${margin}px` : margin;
+  }
+
+  return fallback;
 };
 
 const getBackgroundImage = (source = {}) => firstValue(
@@ -136,7 +207,18 @@ const getTheme = (sourceJson = {}) => ({
   inputBorderColor: firstValue(sourceJson.theme?.inputBorderColor, sourceJson.theme?.inputBorderColour, sourceJson.theme?.fieldBorderColor) || "#d1d5db",
   successColor: sourceJson.theme?.successColor || sourceJson.theme?.primaryColor || "#178218",
   thankYouTitle: sourceJson.theme?.thankYouTitle || sourceJson.theme?.successTitle || "Thank you!",
-  thankYouMessage: sourceJson.theme?.thankYouMessage || sourceJson.theme?.successMessage || "Your details have been submitted successfully.",
+  thankYouMessage: sourceJson.theme?.thankYouText || sourceJson.theme?.thankYouMessage || sourceJson.theme?.successMessage || "Your details have been submitted successfully.",
+  thankYouShowButton: sourceJson.theme?.thankYouShowButton ?? false,
+  thankYouButtonText: sourceJson.theme?.thankYouButtonText || "Visit",
+  thankYouButtonUrl: sourceJson.theme?.thankYouButtonUrl || "https://example.com",
+  thankYouButtonColor: sourceJson.theme?.thankYouButtonColor || sourceJson.theme?.primaryColor || "#0f766e",
+  thankYouButtonTextColor: sourceJson.theme?.thankYouButtonTextColor || "#ffffff",
+  thankYouButtonRadius: sourceJson.theme?.thankYouButtonRadius,
+  thankYouButtonPadding: sourceJson.theme?.thankYouButtonPadding || "10px 18px",
+  thankYouButtonSize: sourceJson.theme?.thankYouButtonSize,
+  thankYouButtonWeight: sourceJson.theme?.thankYouButtonWeight,
+  thankYouButtonMargin: sourceJson.theme?.thankYouButtonMargin,
+  thankYouButtonAlign: sourceJson.theme?.thankYouButtonAlign,
   errorColor: sourceJson.theme?.errorColor || "#dc2626",
   followDeviceColorScheme: sourceJson.theme?.followDeviceColorScheme !== false,
   fontFamily: sourceJson.theme?.fontFamily || "Arial, sans-serif"
@@ -232,7 +314,8 @@ const renderText = (block, theme, tag = "p") => {
   const text = props.text || "";
 
   return `<${htmlTag} style="${style({
-    margin: props.margin || "0 0 14px",
+    margin: getBoxMargin(props, "0 0 14px"),
+    padding: getBoxPadding(props, "0"),
     color: props.color || theme.textColor,
     "font-family": theme.fontFamily,
     "font-size": px(props.fontSize, htmlTag === "p" ? "16px" : "24px"),
@@ -258,7 +341,7 @@ const renderImageHtml = (block, theme) => {
   })}" />`;
 
   return props.href
-    ? `<table class="email-image-frame" role="presentation" width="${width}" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:${width}px;margin:0 auto;padding:0;border-collapse:collapse"><tr><td style="padding:${padding};margin:0"><a href="${escapeAttr(props.href)}" target="_blank" style="display:block;margin:0;padding:0">${image}</a></td></tr></table>`
+    ? `<table class="email-image-frame" role="presentation" width="${width}" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:${width}px;margin:0 auto;padding:0;border-collapse:collapse"><tr><td style="padding:${padding};margin:0"><a href="${escapeAttr(appendUtmToUrl(props.href, "{{campaignName}}", "banner_click", "{{templateSlug}}"))}" target="_blank" style="display:block;margin:0;padding:0">${image}</a></td></tr></table>`
     : `<table class="email-image-frame" role="presentation" width="${width}" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:${width}px;margin:0 auto;padding:0;border-collapse:collapse"><tr><td style="padding:${padding};margin:0">${image}</td></tr></table>`;
 };
 
@@ -270,7 +353,32 @@ const renderImageAmp = (block, theme) => {
   const image = `<div class="email-amp-image" style="padding:${padding};text-align:${textAlign};max-width:${width}px;margin:0 auto"><amp-img src="${escapeAttr(props.src)}" alt="${escapeAttr(props.alt || "")}" width="${width}" height="${height}" layout="responsive"></amp-img></div>`;
 
   return props.href
-    ? `<a href="${escapeAttr(props.href)}" target="_blank">${image}</a>`
+    ? `<a href="${escapeAttr(appendUtmToUrl(props.href, "{{campaignName}}", "banner_click", "{{templateSlug}}"))}" target="_blank">${image}</a>`
+    : image;
+};
+
+const renderHostedFormBanner = (block, theme) => {
+  const props = block.props || {};
+  const { width, height } = getImageSize(props, theme);
+  const requestedWidth = numberFrom(
+    props.hostedFormWidth,
+    props.formPageWidth,
+    props.bannerWidth
+  );
+  const bannerWidth = theme.bannerWidth || Math.min(
+    requestedWidth || HOSTED_FORM_BANNER_WIDTH,
+    HOSTED_FORM_WIDTH
+  );
+  const bannerHeight = Math.round(height * (bannerWidth / width));
+  const image = `<div class="hosted-form-banner" style="${style({
+    width: "100%",
+    "max-width": `${bannerWidth}px`,
+    margin: "0 auto 0",
+    "text-align": "center"
+  })}"><amp-img src="${escapeAttr(props.src)}" alt="${escapeAttr(props.alt || "")}" width="${bannerWidth}" height="${bannerHeight}" layout="responsive"></amp-img></div>`;
+
+  return props.href
+    ? `<a href="${escapeAttr(appendUtmToUrl(props.href, "{{campaignName}}", "banner_click", "{{templateSlug}}"))}" target="_blank">${image}</a>`
     : image;
 };
 
@@ -285,17 +393,17 @@ const renderButton = (block, theme) => {
   <tr>
     <td align="center" bgcolor="${escapeAttr(backgroundColor)}" style="border-radius:${px(firstValue(props.buttonRadius, props.radius), "6px")}">
       <a href="${href}" target="_blank" style="${style({
-        display: "inline-block",
-        background: backgroundColor,
-        color,
-        "font-family": theme.fontFamily,
-        "font-size": px(props.fontSize, "16px"),
-        "font-weight": props.fontWeight || "700",
-        "line-height": "1",
-        "text-decoration": "none",
-        padding: props.buttonPadding || props.padding || "13px 20px",
-        "border-radius": px(firstValue(props.buttonRadius, props.radius), "6px")
-      })}">${text}</a>
+    display: "inline-block",
+    background: backgroundColor,
+    color,
+    "font-family": theme.fontFamily,
+    "font-size": px(props.fontSize, "16px"),
+    "font-weight": props.fontWeight || "700",
+    "line-height": "1",
+    "text-decoration": "none",
+    padding: props.buttonPadding || props.padding || "13px 20px",
+    "border-radius": px(firstValue(props.buttonRadius, props.radius), "6px")
+  })}">${text}</a>
     </td>
   </tr>
 </table>`;
@@ -382,12 +490,12 @@ const renderNavbar = (block, theme) => {
     padding: props.padding || "12px 0"
   })}">
     ${links.map((link) => `<a href="${escapeAttr(link.href)}" style="${style({
-      color: props.color || theme.primaryColor,
-      "font-size": px(props.fontSize, "14px"),
-      "font-weight": "700",
-      "text-decoration": "none",
-      margin: "0 10px"
-    })}">${escapeHtml(link.label)}</a>`).join("")}
+    color: props.color || theme.primaryColor,
+    "font-size": px(props.fontSize, "14px"),
+    "font-weight": "700",
+    "text-decoration": "none",
+    margin: "0 10px"
+  })}">${escapeHtml(link.label)}</a>`).join("")}
   </div>`;
 };
 
@@ -411,34 +519,34 @@ const renderSocialLinks = (block, theme, target = "html") => {
   return `<div style="${style({
     "font-family": theme.fontFamily,
     "text-align": props.align || "center",
-    margin: props.margin || "18px 0",
-    padding: props.padding
+    margin: getBoxMargin(props, "18px 0"),
+    padding: getBoxPadding(props, "0")
   })}">
     ${links.map((item) => {
-      const href = escapeAttr(item.href || item.url || "#");
-      const label = escapeHtml(item.label || item.name || item.platform || "Social");
-      const iconUrl = getSocialIconUrl(item);
-      const size = Number(item.size || props.iconSize || props.size) || 32;
+    const href = escapeAttr(item.href || item.url || "#");
+    const label = escapeHtml(item.label || item.name || item.platform || "Social");
+    const iconUrl = getSocialIconUrl(item);
+    const size = Number(item.size || props.iconSize || props.size) || 32;
 
-      const imageMarkup = target === "amp"
-        ? `<amp-img src="${escapeAttr(iconUrl)}" alt="${label}" width="${size}" height="${size}" layout="fixed"></amp-img>`
-        : `<img src="${escapeAttr(iconUrl)}" alt="${label}" width="${size}" height="${size}" style="${style({
-            display: "block",
-            border: "0",
-            width: `${size}px`,
-            height: `${size}px`,
-            "border-radius": px(item.radius || props.iconRadius, "0")
-          })}">`;
+    const imageMarkup = target === "amp"
+      ? `<amp-img src="${escapeAttr(iconUrl)}" alt="${label}" width="${size}" height="${size}" layout="fixed"></amp-img>`
+      : `<img src="${escapeAttr(iconUrl)}" alt="${label}" width="${size}" height="${size}" style="${style({
+        display: "block",
+        border: "0",
+        width: `${size}px`,
+        height: `${size}px`,
+        "border-radius": px(item.radius || props.iconRadius, "0")
+      })}">`;
 
-      return `<a href="${href}" target="_blank" style="${style({
-        display: "inline-block",
-        margin: item.margin || props.itemMargin || "0 6px",
-        color: item.color || props.color || theme.primaryColor,
-        "font-size": px(props.fontSize, "13px"),
-        "text-decoration": "none",
-        "vertical-align": "middle"
-      })}">${iconUrl ? imageMarkup : label}</a>`;
-    }).join("")}
+    return `<a href="${href}" target="_blank" style="${style({
+      display: "inline-block",
+      margin: item.margin || props.itemMargin || "0 6px",
+      color: item.color || props.color || theme.primaryColor,
+      "font-size": px(props.fontSize, "13px"),
+      "text-decoration": "none",
+      "vertical-align": "middle"
+    })}">${iconUrl ? imageMarkup : label}</a>`;
+  }).join("")}
   </div>`;
 };
 
@@ -455,10 +563,10 @@ const renderLogoHeader = (block, theme) => {
   })}">
     ${logo}
     ${props.title ? `<h1 style="${style({
-      margin: "0",
-      color: props.color || theme.textColor,
-      "font-size": px(props.fontSize, "26px")
-    })}">${escapeHtml(props.title)}</h1>` : ""}
+    margin: "0",
+    color: props.color || theme.textColor,
+    "font-size": px(props.fontSize, "26px")
+  })}">${escapeHtml(props.title)}</h1>` : ""}
   </div>`;
 };
 
@@ -533,6 +641,38 @@ const normalizeOptions = (options, fallback) => {
   });
 };
 
+const fieldTypesWithOptions = new Set(["select", "radio", "checkbox"]);
+
+const normalizeField = (field = {}, index = 0, fallback = {}) => {
+  const type = field.type || fallback.type || "text";
+  const normalized = {
+    ...fallback,
+    ...field,
+    name: field.name || fallback.name || `field${index + 1}`,
+    label: field.label || field.question || fallback.label || `Field ${index + 1}`,
+    type,
+    required: field.required ?? fallback.required ?? false
+  };
+
+  if (fieldTypesWithOptions.has(type)) {
+    normalized.options = normalizeOptions(
+      field.options,
+      fallback.options || ["Yes", "No"]
+    );
+  }
+
+  return normalized;
+};
+
+const normalizeFields = (fields, fallbackFields = []) => {
+  const values = Array.isArray(fields) && fields.length ? fields : fallbackFields;
+  return values.map((field, index) => normalizeField(field, index, fallbackFields[index]));
+};
+
+const getManagedFields = (props, fallbackFields = []) => {
+  return normalizeFields(props.fields || props.questions, fallbackFields);
+};
+
 const toFormBlock = (block, fields, defaults = {}) => {
   return {
     ...block,
@@ -551,17 +691,18 @@ const renderPoll = (block, theme, target) => {
     props.options,
     ["Yes", "No", "Maybe"]
   );
+  const fields = getManagedFields(props, [
+    {
+      name: props.name || "pollAnswer",
+      label: props.question || "What do you think?",
+      type: "radio",
+      required: true,
+      options
+    }
+  ]);
   const formBlock = toFormBlock(
     block,
-    [
-      {
-        name: props.name || "pollAnswer",
-        label: props.question || "What do you think?",
-        type: "radio",
-        required: true,
-        options
-      }
-    ],
+    fields,
     {
       title: props.title || "Quick poll",
       description: props.description || props.question,
@@ -580,24 +721,21 @@ const renderPoll = (block, theme, target) => {
 
 const renderSurvey = (block, theme, target) => {
   const props = block.props || {};
-  const questions = Array.isArray(props.questions) && props.questions.length
-    ? props.questions
-    : [
-        {
-          name: "surveyAnswer",
-          label: props.question || "How was your experience?",
-          type: "select",
-          required: true,
-          options: ["Excellent", "Good", "Average", "Poor"]
-        }
-      ];
-  const fields = questions.map((question, index) => ({
-    name: question.name || `question${index + 1}`,
-    label: question.label || question.question || `Question ${index + 1}`,
-    type: question.type || "select",
-    required: question.required !== false,
-    options: normalizeOptions(question.options, ["Yes", "No"])
-  }));
+  const fields = getManagedFields(props, [
+    {
+      name: "experience",
+      label: props.question || "How was your experience?",
+      type: "select",
+      required: true,
+      options: ["Excellent", "Good", "Average", "Poor"]
+    },
+    {
+      name: "comments",
+      label: "Anything else you want to share?",
+      type: "textarea",
+      required: false
+    }
+  ]);
   const formBlock = toFormBlock(block, fields, {
     title: props.title || "Survey",
     description: props.description,
@@ -623,26 +761,27 @@ const renderRating = (block, theme, target) => {
       value
     };
   });
+  const fields = getManagedFields(props, [
+    {
+      name: props.name || "rating",
+      label: props.question || "How would you rate us?",
+      type: "radio",
+      required: true,
+      options
+    },
+    ...(props.allowComment === false
+      ? []
+      : [
+        {
+          name: props.commentName || "comment",
+          label: props.commentLabel || "Anything else to share?",
+          type: "textarea"
+        }
+      ])
+  ]);
   const formBlock = toFormBlock(
     block,
-    [
-      {
-        name: props.name || "rating",
-        label: props.question || "How would you rate us?",
-        type: "radio",
-        required: true,
-        options
-      },
-      ...(props.allowComment === false
-        ? []
-        : [
-            {
-              name: props.commentName || "comment",
-              label: props.commentLabel || "Anything else to share?",
-              type: "textarea"
-            }
-          ])
-    ],
+    fields,
     {
       title: props.title || "Rate your experience",
       description: props.description,
@@ -665,22 +804,23 @@ const renderNps = (block, theme, target) => {
     label: String(value),
     value
   }));
+  const fields = getManagedFields(props, [
+    {
+      name: props.name || "npsScore",
+      label: props.question || "How likely are you to recommend us?",
+      type: "radio",
+      required: true,
+      options
+    },
+    {
+      name: props.reasonName || "npsReason",
+      label: props.reasonLabel || "What is the main reason for your score?",
+      type: "textarea"
+    }
+  ]);
   const formBlock = toFormBlock(
     block,
-    [
-      {
-        name: props.name || "npsScore",
-        label: props.question || "How likely are you to recommend us?",
-        type: "radio",
-        required: true,
-        options
-      },
-      {
-        name: props.reasonName || "npsReason",
-        label: props.reasonLabel || "What is the main reason for your score?",
-        type: "textarea"
-      }
-    ],
+    fields,
     {
       title: props.title || "Quick NPS",
       description: props.description || "0 means not likely, 10 means very likely.",
@@ -699,31 +839,32 @@ const renderNps = (block, theme, target) => {
 
 const renderAppointment = (block, theme, target) => {
   const props = block.props || {};
+  const fields = getManagedFields(props, [
+    {
+      name: props.dateName || "appointmentDate",
+      label: props.dateLabel || "Preferred date",
+      type: "date",
+      required: true
+    },
+    {
+      name: props.timeName || "appointmentTime",
+      label: props.timeLabel || "Preferred time",
+      type: "select",
+      required: true,
+      options: normalizeOptions(
+        props.slots,
+        ["10:00 AM", "12:00 PM", "03:00 PM", "05:00 PM"]
+      )
+    },
+    {
+      name: props.phoneName || "phone",
+      label: props.phoneLabel || "Phone number",
+      type: "tel"
+    }
+  ]);
   const formBlock = toFormBlock(
     block,
-    [
-      {
-        name: props.dateName || "appointmentDate",
-        label: props.dateLabel || "Preferred date",
-        type: "date",
-        required: true
-      },
-      {
-        name: props.timeName || "appointmentTime",
-        label: props.timeLabel || "Preferred time",
-        type: "select",
-        required: true,
-        options: normalizeOptions(
-          props.slots,
-          ["10:00 AM", "12:00 PM", "03:00 PM", "05:00 PM"]
-        )
-      },
-      {
-        name: props.phoneName || "phone",
-        label: props.phoneLabel || "Phone number",
-        type: "tel"
-      }
-    ],
+    fields,
     {
       title: props.title || "Book an appointment",
       description: props.description,
@@ -742,22 +883,23 @@ const renderAppointment = (block, theme, target) => {
 
 const renderRsvp = (block, theme, target) => {
   const props = block.props || {};
+  const fields = getManagedFields(props, [
+    {
+      name: props.name || "rsvp",
+      label: props.question || "Will you attend?",
+      type: "radio",
+      required: true,
+      options: normalizeOptions(props.options, ["Yes", "Maybe", "No"])
+    },
+    {
+      name: props.guestName || "guestCount",
+      label: props.guestLabel || "Number of guests",
+      type: "number"
+    }
+  ]);
   const formBlock = toFormBlock(
     block,
-    [
-      {
-        name: props.name || "rsvp",
-        label: props.question || "Will you attend?",
-        type: "radio",
-        required: true,
-        options: normalizeOptions(props.options, ["Yes", "Maybe", "No"])
-      },
-      {
-        name: props.guestName || "guestCount",
-        label: props.guestLabel || "Number of guests",
-        type: "number"
-      }
-    ],
+    fields,
     {
       title: props.title || "Event RSVP",
       description: props.description,
@@ -845,11 +987,11 @@ const renderAccordion = (block, theme) => {
 
   return `<div style="font-family:${theme.fontFamily}">
     ${items.map((item) => `<div style="${style({
-      border: "1px solid #e5e7eb",
-      "border-radius": "6px",
-      padding: "12px",
-      margin: "8px 0"
-    })}">
+    border: "1px solid #e5e7eb",
+    "border-radius": "6px",
+    padding: "12px",
+    margin: "8px 0"
+  })}">
       <p style="margin:0 0 6px;font-weight:700;color:${theme.textColor}">${escapeHtml(item.title)}</p>
       <p style="margin:0;color:${theme.mutedColor};font-size:14px">${escapeHtml(item.text)}</p>
     </div>`).join("")}
@@ -862,19 +1004,41 @@ const renderCarousel = (block, theme) => {
     { imageUrl: "https://via.placeholder.com/600x260.png?text=Slide+1", title: "Slide 1" },
     { imageUrl: "https://via.placeholder.com/600x260.png?text=Slide+2", title: "Slide 2" }
   ];
+  const width = Number(props.width) || 600;
+  const height = Number(props.height) || 260;
+  const radius = px(props.radius, "8px");
+  const getSlideSrc = (slide = {}) => slide.imageUrl || slide.src || "";
+  const getSlideAlt = (slide = {}) => slide.alt || slide.title || "Carousel slide";
+  const visibleSlides = props.fallback === "first" ? slides.slice(0, 1) : slides.slice(0, Number(props.maxFallbackSlides) || 3);
 
   if (props.amp === true) {
-    return `<amp-carousel width="${Number(props.width) || 600}" height="${Number(props.height) || 260}" layout="responsive" type="slides">
+    const autoplayAttr = props.autoplay !== false ? " autoplay" : "";
+    const loopAttr = props.loop !== false ? " loop" : "";
+    const delayAttr = (props.autoplay !== false && props.delay) ? ` delay="${Number(props.delay)}"` : "";
+    return `<amp-carousel width="${width}" height="${height}" layout="responsive" type="slides"${autoplayAttr}${loopAttr}${delayAttr}>
       ${slides.map((slide) => `<div>
-        <amp-img src="${escapeAttr(slide.imageUrl)}" alt="${escapeAttr(slide.title)}" width="${Number(props.width) || 600}" height="${Number(props.height) || 260}" layout="responsive"></amp-img>
+        ${slide.href ? `<a href="${escapeAttr(slide.href)}" target="_blank">` : ""}
+        <amp-img src="${escapeAttr(getSlideSrc(slide))}" alt="${escapeAttr(getSlideAlt(slide))}" width="${width}" height="${height}" layout="responsive"></amp-img>
+        ${slide.href ? "</a>" : ""}
       </div>`).join("")}
     </amp-carousel>`;
   }
 
   return `<div style="font-family:${theme.fontFamily};text-align:center">
-    ${slides.slice(0, 3).map((slide) => `<div style="margin:10px 0">
-      <img src="${escapeAttr(slide.imageUrl)}" alt="${escapeAttr(slide.title)}" style="display:block;width:100%;height:auto;border-radius:8px">
-      <p style="margin:8px 0 0;font-weight:700;color:${theme.textColor}">${escapeHtml(slide.title)}</p>
+    ${visibleSlides.map((slide) => `<div style="margin:10px 0">
+      ${slide.href ? `<a href="${escapeAttr(slide.href)}" target="_blank" style="text-decoration:none">` : ""}
+      <img src="${escapeAttr(getSlideSrc(slide))}" alt="${escapeAttr(getSlideAlt(slide))}" width="${width}" style="${style({
+    display: "block",
+    width: "100%",
+    "max-width": `${width}px`,
+    height: "auto",
+    margin: "0 auto",
+    border: "0",
+    "border-radius": radius
+  })}">
+      ${slide.href ? "</a>" : ""}
+      ${props.showTitles !== false && slide.title ? `<p style="margin:8px 0 0;font-weight:700;color:${theme.textColor}">${escapeHtml(slide.title)}</p>` : ""}
+      ${props.showDescriptions !== false && slide.description ? `<p style="margin:4px 0 0;color:${theme.mutedColor};font-size:14px;line-height:1.45">${escapeHtml(slide.description)}</p>` : ""}
     </div>`).join("")}
   </div>`;
 };
@@ -997,11 +1161,15 @@ const renderFields = (fields = [], amp = false, theme = {}) => {
 
 const renderThankYouMessage = (props = {}, theme = {}) => {
   const title = props.thankYouTitle || props.successTitle || theme.thankYouTitle || "Thank you!";
-  const message = props.thankYouMessage || props.successMessage || theme.thankYouMessage || "Your details have been submitted successfully.";
+  const message = props.thankYouText || props.thankYouMessage || props.successMessage || theme.thankYouMessage || "Your details have been submitted successfully.";
   const backgroundColor = props.thankYouBackgroundColor || props.successBackgroundColor || props.formBackgroundColor || props.contentColor || theme.formBackgroundColor || "#ffffff";
-  const borderColor = props.thankYouBorderColor || props.successBorderColor || props.successColor || theme.successColor || theme.primaryColor;
-  const titleColor = props.thankYouTitleColor || props.successTitleColor || "#ffffff";
-  const textColor = props.thankYouTextColor || props.successTextColor || "#ffffff";
+  const borderColor = props.thankYouBorderColor || props.successBorderColor || theme.thankYouBorderColor || props.successColor || theme.successColor || theme.primaryColor || "#34d399";
+  const titleColor = props.thankYouTitleColor || props.successTitleColor || theme.thankYouTitleColor || "#047857";
+  const textColor = props.thankYouTextColor || props.successTextColor || theme.thankYouTextColor || "#064e3b";
+  const showButton = props.thankYouShowButton ?? theme.thankYouShowButton;
+  const buttonText = props.thankYouButtonText || theme.thankYouButtonText || "Visit";
+  const buttonUrl = props.thankYouButtonUrl || theme.thankYouButtonUrl || "https://example.com";
+  const buttonAlign = props.thankYouButtonAlign || theme.thankYouButtonAlign || props.thankYouAlign || "center";
 
   return `<div style="${style({
     margin: props.thankYouMargin || "18px 0 0",
@@ -1012,17 +1180,32 @@ const renderThankYouMessage = (props = {}, theme = {}) => {
     "text-align": props.thankYouAlign || "center"
   })}">
     <p style="${style({
-      margin: "0 0 6px",
-      color: titleColor,
-      "font-size": px(props.thankYouTitleSize, "18px"),
-      "font-weight": "700"
-    })}">${escapeHtml(title)}</p>
+    margin: "0 0 6px",
+    color: titleColor,
+    "font-size": px(props.thankYouTitleSize, "18px"),
+    "font-weight": props.thankYouTitleWeight || theme.thankYouTitleWeight || "800"
+  })}">${escapeHtml(title)}</p>
     <p style="${style({
-      margin: "0",
-      color: textColor,
-      "font-size": px(props.thankYouTextSize, "14px"),
-      "line-height": "1.45"
-    })}">${escapeHtml(message)}</p>
+    margin: "0",
+    color: textColor,
+    "font-size": px(props.thankYouTextSize, "14px"),
+    "font-weight": props.thankYouTextWeight || theme.thankYouTextWeight || "600",
+    "line-height": "1.45"
+  })}">${escapeHtml(message)}</p>
+    ${showButton ? `<div style="${style({
+    "text-align": buttonAlign,
+    margin: props.thankYouButtonMargin || theme.thankYouButtonMargin || "14px 0 0"
+  })}"><a href="${escapeAttr(appendUtmToUrl(buttonUrl, "{{campaignName}}", "email_visit_button", "{{templateSlug}}"))}" target="_blank" rel="noopener" style="${style({
+    display: "inline-block",
+    background: props.thankYouButtonColor || theme.thankYouButtonColor || "#0f766e",
+    color: props.thankYouButtonTextColor || theme.thankYouButtonTextColor || "#ffffff",
+    "border-radius": px(props.thankYouButtonRadius || theme.thankYouButtonRadius, "8px"),
+    padding: props.thankYouButtonPadding || theme.thankYouButtonPadding || "10px 18px",
+    "font-size": px(props.thankYouButtonSize || theme.thankYouButtonSize, "14px"),
+    "font-weight": props.thankYouButtonWeight || theme.thankYouButtonWeight || "800",
+    "line-height": "1.2",
+    "text-decoration": "none"
+  })}">${escapeHtml(buttonText)}</a></div>` : ""}
   </div>`;
 };
 
@@ -1055,29 +1238,32 @@ const renderAmpForm = (block, theme) => {
     "font-family": theme.fontFamily,
     color: props.textColor || theme.textColor
   })}">
-  ${props.title ? `<h2 style="${style({
-    margin: props.titleMargin || "0 0 8px",
-    color: props.titleColor || props.headingColor || theme.textColor,
-    "font-size": px(props.titleSize || props.titleFontSize, "24px")
-  })}">${escapeHtml(props.title)}</h2>` : ""}
-  ${props.description ? `<p style="${style({
-    margin: props.descriptionMargin || "0 0 14px",
-    color: props.descriptionColor || props.mutedColor || theme.mutedColor
-  })}">${escapeHtml(props.description)}</p>` : ""}
-  ${fields}
-  <button type="submit" style="${style({
-    width: "100%",
-    margin: "18px 0 0",
-    border: "0",
-    "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
-    background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
-    color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
-    padding: props.buttonPadding || props.submitButtonPadding || "13px",
-    "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
-    "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
-  })}">${escapeHtml(props.submitText || "Submit")}</button>
+  <div class="form-content-wrapper">
+    ${props.title ? `<h2 style="${style({
+      margin: props.titleMargin || "0 0 8px",
+      color: props.titleColor || props.headingColor || theme.textColor,
+      "font-size": px(props.titleSize || props.titleFontSize, "24px")
+    })}">${escapeHtml(props.title)}</h2>` : ""}
+    ${props.description ? `<p style="${style({
+      margin: props.descriptionMargin || "0 0 14px",
+      color: props.descriptionColor || props.mutedColor || theme.mutedColor
+    })}">${escapeHtml(props.description)}</p>` : ""}
+    ${fields}
+    <button type="submit" style="${style({
+      width: "100%",
+      margin: "18px 0 0",
+      border: "0",
+      "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
+      background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
+      color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
+      padding: props.buttonPadding || props.submitButtonPadding || "13px",
+      "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
+      "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
+    })}">${escapeHtml(props.submitText || "Submit")}</button>
+  </div>
+
   <div submit-success><template type="amp-mustache">${renderThankYouMessage(props, theme)}</template></div>
-  <div submit-error><template type="amp-mustache"><p style="color:${props.errorColor || theme.errorColor};text-align:center;font-weight:700">Submission failed.</p></template></div>
+  <div submit-error><template type="amp-mustache"><div style="padding:12px;text-align:center"><p style="margin:0;color:${props.errorColor || theme.errorColor || "#dc2626"};font-weight:700">❌ Submission failed. Please try again.</p></div></template></div>
 </form>`;
 };
 
@@ -1094,9 +1280,19 @@ const renderFormPageForm = (block, theme) => {
     theme.formBackgroundImage
   );
 
+  const formMaxWidth = firstValue(
+    props.formMaxWidth,
+    props.formWidth,
+    theme.bannerWidth,
+    theme.width,
+    560
+  );
+
   return `<form method="post" action-xhr="{{formActionUrl}}" target="_top" style="${style({
     margin: "0 auto",
-    "max-width": "560px",
+    width: "100%",
+    "max-width": `${formMaxWidth}px`,
+    "box-sizing": "border-box",
     "background-color": props.formBackgroundColor || props.contentColor || props.backgroundColor || theme.formBackgroundColor,
     ...backgroundImageStyles(formBackgroundImage, {
       size: props.backgroundSize,
@@ -1109,27 +1305,30 @@ const renderFormPageForm = (block, theme) => {
     "font-family": theme.fontFamily,
     color: props.textColor || theme.textColor
   })}">
-  ${props.title ? `<h1 style="${style({
-    margin: props.titleMargin || "0 0 8px",
-    color: props.titleColor || props.headingColor || theme.textColor,
-    "font-size": px(props.titleSize || props.titleFontSize, "24px")
-  })}">${escapeHtml(props.title)}</h1>` : ""}
-  ${props.description ? `<p style="${style({
-    margin: props.descriptionMargin || "0 0 16px",
-    color: props.descriptionColor || props.mutedColor || theme.mutedColor
-  })}">${escapeHtml(props.description)}</p>` : ""}
-  ${renderFields(props.fields || [], false, getFormFieldTheme(props, theme))}
-  <button type="submit" style="${style({
-    width: "100%",
-    margin: "20px 0 0",
-    border: "0",
-    "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
-    background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
-    color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
-    padding: props.buttonPadding || props.submitButtonPadding || "13px",
-    "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
-    "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
-  })}">${escapeHtml(props.submitText || "Submit")}</button>
+  <div class="form-content-wrapper">
+    ${props.title ? `<h1 style="${style({
+      margin: props.titleMargin || "0 0 8px",
+      color: props.titleColor || props.headingColor || theme.textColor,
+      "font-size": px(props.titleSize || props.titleFontSize, "24px")
+    })}">${escapeHtml(props.title)}</h1>` : ""}
+    ${props.description ? `<p style="${style({
+      margin: props.descriptionMargin || "0 0 16px",
+      color: props.descriptionColor || props.mutedColor || theme.mutedColor
+    })}">${escapeHtml(props.description)}</p>` : ""}
+    ${renderFields(props.fields || [], false, getFormFieldTheme(props, theme))}
+    <button type="submit" style="${style({
+      width: "100%",
+      margin: "20px 0 0",
+      border: "0",
+      "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
+      background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
+      color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
+      padding: props.buttonPadding || props.submitButtonPadding || "13px",
+      "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
+      "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
+    })}">${escapeHtml(props.submitText || "Submit")}</button>
+  </div>
+  
   <div submit-success>
     <template type="amp-mustache">
       ${renderThankYouMessage(props, theme)}
@@ -1137,7 +1336,9 @@ const renderFormPageForm = (block, theme) => {
   </div>
   <div submit-error>
     <template type="amp-mustache">
-      <p style="color:${props.errorColor || theme.errorColor};text-align:center;font-weight:700">Submission failed. Please try again.</p>
+      <div style="padding:12px;text-align:center">
+        <p style="margin:0;color:${props.errorColor || theme.errorColor || "#dc2626"};font-weight:700">❌ Submission failed. Please try again.</p>
+      </div>
     </template>
   </div>
 </form>`;
@@ -1165,14 +1366,382 @@ const renderFooter = (block = {}, theme, target = "html") => {
     ${socialHtml}
     ${props.text ? `<p style="margin:0 0 10px;color:${props.color || "#6b7280"}">${escapeHtml(props.text)}</p>` : ""}
     ${unsubscribe ? `<a href="${escapeAttr(href)}" target="_blank" style="${style({
-      display: asButton ? "inline-block" : undefined,
-      background: asButton ? (unsubscribeButton.backgroundColor || props.buttonColor || theme.buttonColor || theme.primaryColor) : undefined,
-      color: asButton ? (unsubscribeButton.color || props.buttonTextColor || theme.buttonTextColor || "#ffffff") : (unsubscribeButton.color || props.linkColor || "#6b7280"),
-      "text-decoration": asButton ? "none" : "underline",
-      padding: asButton ? (unsubscribeButton.padding || "10px 16px") : undefined,
-      "border-radius": asButton ? px(unsubscribeButton.radius || props.buttonRadius, "6px") : undefined,
-      "font-weight": asButton ? (unsubscribeButton.fontWeight || "700") : undefined
-    })}">${escapeHtml(text)}</a>` : ""}
+    display: asButton ? "inline-block" : undefined,
+    background: asButton ? (unsubscribeButton.backgroundColor || props.buttonColor || theme.buttonColor || theme.primaryColor) : undefined,
+    color: asButton ? (unsubscribeButton.color || props.buttonTextColor || theme.buttonTextColor || "#ffffff") : (unsubscribeButton.color || props.linkColor || "#6b7280"),
+    "text-decoration": asButton ? "none" : "underline",
+    padding: asButton ? (unsubscribeButton.padding || "10px 16px") : undefined,
+    "border-radius": asButton ? px(unsubscribeButton.radius || props.buttonRadius, "6px") : undefined,
+    "font-weight": asButton ? (unsubscribeButton.fontWeight || "700") : undefined
+  })}">${escapeHtml(text)}</a>` : ""}
+  </div>`;
+};
+
+const fontSize = (value, fallback, min = 12) => {
+  const size = Number(value || fallback);
+  const vw = Math.min(Math.max(size / 6, 3.2), 10);
+  return `clamp(${min}px, ${vw}vw, ${size}px)`;
+};
+
+const buildSvgWheel = (props, options) => {
+  const segmentColors = props.segmentColors
+    ? props.segmentColors.split(",").map(c => c.trim())
+    : ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#60a5fa", "#818cf8", "#a78bfa", "#f472b6"];
+
+  const cx = 100;
+  const cy = 100;
+  const radius = 90;
+
+  const svgSegments = options.map((option, index) => {
+    const angle = 360 / options.length;
+    const startAngle = index * angle;
+    const endAngle = (index + 1) * angle;
+
+    const toRadians = (deg) => (deg * Math.PI) / 180;
+    const x1 = cx + radius * Math.cos(toRadians(startAngle - 90));
+    const y1 = cy + radius * Math.sin(toRadians(startAngle - 90));
+    const x2 = cx + radius * Math.cos(toRadians(endAngle - 90));
+    const y2 = cy + radius * Math.sin(toRadians(endAngle - 90));
+
+    const largeArcFlag = angle > 180 ? 1 : 0;
+
+    const pathData = [
+      `M ${cx} ${cy}`,
+      `L ${x1} ${y1}`,
+      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+      "Z"
+    ].join(" ");
+
+    const textAngle = startAngle + angle / 2 - 90;
+    const textX = cx + (radius * 0.65) * Math.cos(toRadians(textAngle));
+    const textY = cy + (radius * 0.65) * Math.sin(toRadians(textAngle));
+
+    const fill = option.color || segmentColors[index % segmentColors.length];
+    const textColor = option.textColor || props.segmentTextColor || "#ffffff";
+    const fontSizeVal = props.segmentFontSize || 8;
+    const fontWeight = props.segmentFontWeight || "bold";
+
+    return `<g>
+      <path d="${pathData}" fill="${fill}" stroke="#ffffff" stroke-width="1" />
+      <text
+        x="${textX}"
+        y="${textY}"
+        fill="${textColor}"
+        font-size="${fontSizeVal}"
+        font-weight="${fontWeight}"
+        text-anchor="middle"
+        transform="rotate(${textAngle + 90}, ${textX}, ${textY})"
+      >
+        ${escapeHtml(option.label || option.value)}
+      </text>
+    </g>`;
+  }).join("\n");
+
+  const wheelBg = props.wheelBgColor ? `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${props.wheelBgColor}"/>` : "";
+  const borderStroke = props.wheelOuterBorderColor || "#ffffff";
+  const borderWidth = props.wheelOuterBorderWidth ?? 3;
+  const outerBorder = `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="none" stroke="${borderStroke}" stroke-width="${borderWidth}"/>`;
+
+  let borderDots = "";
+  if (props.wheelBorderDots) {
+    const dotsCount = props.wheelBorderDotsCount || 24;
+    const dotsColor = props.wheelBorderDotsColor || "#ffffff";
+    const dotsHtml = [];
+    for (let i = 0; i < dotsCount; i++) {
+      const dotAngle = (360 / dotsCount) * i;
+      const dotRad = (dotAngle * Math.PI) / 180;
+      const dotX = cx + (radius + 4) * Math.cos(dotRad);
+      const dotY = cy + (radius + 4) * Math.sin(dotRad);
+      dotsHtml.push(`<circle cx="${dotX}" cy="${dotY}" r="2.5" fill="${dotsColor}" />`);
+    }
+    borderDots = dotsHtml.join("\n");
+  }
+
+  const centerPinRad = props.centerPinSize ?? 15;
+  const centerPinFill = props.centerPinColor || "#ffffff";
+  const centerPinStroke = props.centerPinBorderColor || "#cbd5e1";
+  const centerPinStrokeWidth = props.centerPinBorderWidth ?? 3;
+
+  let centerImage = "";
+  if (props.centerPinImage) {
+    centerImage = `
+      <clipPath id="center-clip-${props.id || 'pin'}">
+        <circle cx="${cx}" cy="${cy}" r="${centerPinRad}" />
+      </clipPath>
+      <image href="${escapeHtml(props.centerPinImage)}" x="${cx - centerPinRad}" y="${cy - centerPinRad}" width="${2 * centerPinRad}" height="${2 * centerPinRad}" clip-path="url(#center-clip-${props.id || 'pin'})" preserveAspectRatio="xMidYMid slice" />
+    `;
+  }
+
+  const centerCircle = `<circle cx="${cx}" cy="${cy}" r="${centerPinRad}" fill="${centerPinFill}" stroke="${centerPinStroke}" stroke-width="${centerPinStrokeWidth}"/>`;
+
+  return `
+    <svg viewBox="0 0 200 200" style="width:100%;height:100%">
+      ${wheelBg}
+      ${svgSegments}
+      ${outerBorder}
+      ${borderDots}
+      ${centerCircle}
+      ${centerImage}
+    </svg>
+  `;
+};
+
+const buildPointerStyle = (props) => {
+  const pos = props.pointerPosition || "top";
+  const color = props.pointerColor || "#ef4444";
+  const size = props.pointerSize ?? 24;
+
+  let baseStyle = `position:absolute;z-index:10;filter:drop-shadow(0px 2px 2px rgba(0,0,0,0.2));`;
+  let arrowStyle = "";
+
+  if (props.pointerImage) {
+    let posStyle = "";
+    if (pos === "top") {
+      posStyle = `top:-${size / 2}px;left:50%;transform:translateX(-50%) rotate(180deg);`;
+    } else if (pos === "right") {
+      posStyle = `right:-${size / 2}px;top:50%;transform:translateY(-50%) rotate(270deg);`;
+    } else if (pos === "bottom") {
+      posStyle = `bottom:-${size / 2}px;left:50%;transform:translateX(-50%) rotate(0deg);`;
+    } else {
+      posStyle = `left:-${size / 2}px;top:50%;transform:translateY(-50%) rotate(90deg);`;
+    }
+    return `<div style="${baseStyle}${posStyle}width:${size}px;height:${size}px">
+      <img src="${escapeHtml(props.pointerImage)}" style="width:100%;height:100%;object-fit:contain" />
+    </div>`;
+  }
+
+  const arrowSize = Math.round(size / 2);
+  if (pos === "top") {
+    arrowStyle = `top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowSize}px solid transparent;border-right:${arrowSize}px solid transparent;border-top:${size}px solid ${color};`;
+  } else if (pos === "right") {
+    arrowStyle = `right:-10px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:${arrowSize}px solid transparent;border-bottom:${arrowSize}px solid transparent;border-left:${size}px solid ${color};`;
+  } else if (pos === "bottom") {
+    arrowStyle = `bottom:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${arrowSize}px solid transparent;border-right:${arrowSize}px solid transparent;border-bottom:${size}px solid ${color};`;
+  } else {
+    arrowStyle = `left:-10px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:${arrowSize}px solid transparent;border-bottom:${arrowSize}px solid transparent;border-right:${size}px solid ${color};`;
+  }
+
+  return `<div style="${baseStyle}${arrowStyle}"></div>`;
+};
+
+const renderSpinWheel = (block, theme, target) => {
+  const props = block.props || {};
+  const options = props.options || [
+    { label: "10% Off", value: "10_off", probability: 10 },
+    { label: "Free Shipping", value: "free_shipping", probability: 10 },
+    { label: "Try Again", value: "try_again", probability: 10 },
+    { label: "20% Off", value: "20_off", probability: 10 },
+    { label: "Gift Card", value: "gift_card", probability: 10 },
+    { label: "No Luck", value: "no_luck", probability: 10 }
+  ];
+
+  if (target === "amp") {
+    const actionUrl = props.actionXhr || props.formAmpUrl || "{{formAmpUrl}}";
+    return `<div class="card" style="text-align:center">
+      <form method="post" action-xhr="${escapeAttr(actionUrl)}">
+        <input type="hidden" name="is_spin_wheel" value="true">
+        <input type="hidden" name="spin_wheel_block_id" value="${escapeAttr(block.id || "")}">
+        <input type="hidden" name="trackingid" value="{{trackingId}}">
+        <input type="hidden" name="templateId" value="{{templateId}}">
+        <input type="hidden" name="templateSlug" value="{{templateSlug}}">
+        <input type="hidden" name="campaignName" value="{{campaignName}}">
+
+        <div class="form-content-wrapper">
+          <div class="title">${escapeHtml(props.title || "Spin the Wheel to Win!")}</div>
+          <div class="subtitle">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</div>
+
+          <div style="margin:20px auto;max-width:240px">
+            <amp-img
+              src="{{baseUrl}}/template-assets/wheel/{{templateId}}.svg"
+              layout="responsive"
+              width="240"
+              height="240"
+              alt="Prize Wheel"
+            ></amp-img>
+          </div>
+
+          <button type="submit" class="btn">${escapeHtml(props.submitText || "🎰 Spin Now!")}</button>
+        </div>
+
+        <div submit-success>
+          <template type="amp-mustache">
+            <div class="result-box">
+              <div class="result-icon">🎉</div>
+              <div class="result-title">Congratulations!</div>
+              <div class="result-prize">You won: {{prizeLabel}}</div>
+            </div>
+          </template>
+        </div>
+
+        <div submit-error>
+          <template type="amp-mustache">
+            <div style="padding:16px;text-align:center;color:#dc2626;font-weight:700">
+              ❌ Something went wrong. Please try again.
+            </div>
+          </template>
+        </div>
+      </form>
+    </div>`;
+  }
+
+  if (target === "formPage") {
+    return renderSpinWheelHostedBlock(block, theme);
+  }
+
+  // HTML email version (static redirect CTA)
+  return `<div style="text-align:center;padding:24px;border:1px solid ${props.borderColor || "#e2e8f0"};border-radius:${px(props.radius || 12, "12px")};background-color:${props.formBackgroundColor || "#ffffff"};max-width:500px;margin:0 auto;font-family:${theme.fontFamily}">
+    <h2 style="margin:0 0 8px;color:${props.titleColor || "#111827"};font-size:${fontSize(props.titleSize || 24, 24, 16)};font-weight:${props.titleWeight || 800}">${escapeHtml(props.title || "Spin the Wheel to Win!")}</h2>
+    <p style="margin:0 0 16px;color:${props.descriptionColor || "#64748b"};font-size:${fontSize(props.descriptionSize || 14, 14, 12)}">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</p>
+    
+    <div style="position:relative;margin:24px auto;width:200px;height:200px">
+      ${buildPointerStyle(props)}
+      <div style="width:100%;height:100%">
+        ${buildSvgWheel(props, options)}
+      </div>
+    </div>
+    
+    <div style="margin-top:16px">
+      <a href="{{formHtmlUrl}}" target="_blank" style="display:inline-block;background-color:${props.buttonColor || theme.primaryColor || "#0f766e"};color:${props.buttonTextColor || "#ffffff"};border-radius:${px(props.buttonRadius || 999, "999px")};padding:12px 30px;font-size:16px;font-weight:800;text-decoration:none">
+        ${escapeHtml(props.submitText || "Spin the Wheel")}
+      </a>
+    </div>
+  </div>`;
+};
+
+const renderSpinWheelHostedBlock = (block, theme) => {
+  const props = block.props || {};
+  const options = props.options || [
+    { label: "10% Off", value: "10_off", probability: 10 },
+    { label: "Free Shipping", value: "free_shipping", probability: 10 },
+    { label: "Try Again", value: "try_again", probability: 10 },
+    { label: "20% Off", value: "20_off", probability: 10 },
+    { label: "Gift Card", value: "gift_card", probability: 10 },
+    { label: "No Luck", value: "no_luck", probability: 10 }
+  ];
+
+  const pinText = props.centerPinText || "Spin";
+  const pinSize = props.centerPinButtonSize ?? 60;
+  const pinBg = props.centerPinColor || "#ffffff";
+  const pinTextColor = props.centerPinTextColor || "#111827";
+  const pinBorderColor = props.centerPinBorderColor || props.buttonColor || theme.primaryColor || "#0f766e";
+  const pinBorderWidth = props.centerPinBorderWidth ?? 4;
+
+  let spinButtonContent = pinText;
+  if (props.centerPinImage) {
+    spinButtonContent = `<img src="${escapeHtml(props.centerPinImage)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`;
+  }
+
+  let successText = props.thankYouText || "You won: Prize";
+  if (!successText.includes("won-prize-label")) {
+    if (successText.includes("{prize}")) {
+      successText = successText.replace("{prize}", `<span id="won-prize-label">Prize</span>`);
+    } else if (successText.includes("Prize")) {
+      successText = successText.replace("Prize", `<span id="won-prize-label">Prize</span>`);
+    } else {
+      successText = successText + ` <span id="won-prize-label">Prize</span>`;
+    }
+  }
+
+  const formActionUrl = props.formActionUrl || "{{formActionUrl}}";
+
+  return `<div style="text-align:center;padding:24px;border:1px solid ${props.borderColor || "#e2e8f0"};border-radius:${px(props.radius || 12, "12px")};background-color:${props.formBackgroundColor || "#ffffff"};max-width:500px;margin:0 auto;font-family:${theme.fontFamily}">
+    <h2 style="margin:0 0 8px;color:${props.titleColor || "#111827"};font-size:${fontSize(props.titleSize || 24, 24, 16)};font-weight:${props.titleWeight || 800}">${escapeHtml(props.title || "Spin the Wheel to Win!")}</h2>
+    <p style="margin:0 0 16px;color:${props.descriptionColor || "#64748b"};font-size:${fontSize(props.descriptionSize || 14, 14, 12)}">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</p>
+    
+    <div style="position:relative;margin:24px auto;width:240px;height:240px">
+      <!-- Top pointer -->
+      ${buildPointerStyle(props)}
+      
+      <!-- Spinning Wheel -->
+      <div id="wheel-canvas-container" style="width:100%;height:100%;transition:transform ${Number(props.spinDuration ?? 4)}s cubic-bezier(0.1, 0.8, 0.1, 1);transform:rotate(0deg)">
+        ${buildSvgWheel(props, options)}
+      </div>
+      
+      <!-- Spin Button -->
+      <button id="spin-button" type="button" style="position:absolute;top:50%;left:50%;transform:translate(-50%, -50%);z-index:10;width:${pinSize}px;height:${pinSize}px;border-radius:50%;background-color:${pinBg};color:${pinTextColor};border:${pinBorderWidth}px solid ${pinBorderColor};font-size:12px;font-weight:900;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,0.15);outline:none;display:flex;align-items:center;justify-content:center;text-transform:uppercase;padding:0;overflow:hidden">${spinButtonContent}</button>
+    </div>
+
+    <!-- Hidden Form -->
+    <form id="spin-wheel-form" method="post" action="${escapeAttr(formActionUrl)}" style="margin:0">
+      <input type="hidden" id="spin-result-input" name="spin_result" value="" required>
+      <input type="hidden" name="email" value="{{email}}">
+      <input type="hidden" name="campaignName" value="{{campaignName}}">
+      <input type="hidden" name="campaignType" value="{{campaignType}}">
+      <input type="hidden" name="templateId" value="{{templateId}}">
+      <input type="hidden" name="templateSlug" value="{{templateSlug}}">
+    </form>
+
+    <!-- Local Success Announcement -->
+    <div id="local-success-container" class="hidden">
+      <div style="margin-top:16px;padding:${props.thankYouPadding || '12px'};border:1px solid ${props.thankYouBorderColor || '#34d399'};border-radius:${px(props.thankYouRadius || 8, '8px')};background-color:${props.thankYouBackgroundColor || '#ecfdf5'};text-align:${props.thankYouAlign || 'center'}">
+        <p style="margin:0 0 4px;color:${props.thankYouTitleColor || '#047857'};font-weight:${props.thankYouTitleWeight || 800};font-size:${props.thankYouTitleSize || 16}px">
+          ${escapeHtml(props.thankYouTitle || "🎉 Congratulations!")}
+        </p>
+        <p style="margin:0;color:${props.thankYouTextColor || '#064e3b'};font-weight:${props.thankYouTextWeight || 600};font-size:${props.thankYouTextSize || 14}px">
+          ${successText}
+        </p>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        const options = ${JSON.stringify(options)};
+        const wheel = document.getElementById('wheel-canvas-container');
+        const btn = document.getElementById('spin-button');
+        const input = document.getElementById('spin-result-input');
+        const form = document.getElementById('spin-wheel-form');
+        const successContainer = document.getElementById('local-success-container');
+        const prizeLabelSpan = document.getElementById('won-prize-label');
+        let isSpinning = false;
+
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          if (isSpinning) return;
+          isSpinning = true;
+          btn.disabled = true;
+          btn.style.cursor = 'default';
+          btn.style.opacity = '0.7';
+
+          // Weighted random selection algorithm
+          const totalWeight = options.reduce((sum, opt) => sum + Number(opt.probability || 1), 0);
+          let r = Math.random() * totalWeight;
+          let segmentIndex = 0;
+          for (let i = 0; i < options.length; i++) {
+            r -= Number(options[i].probability || 1);
+            if (r <= 0) {
+              segmentIndex = i;
+              break;
+            }
+          }
+
+          const degreesPerSegment = 360 / options.length;
+          const extraTurns = ${Number(props.spinTurns ?? 6)};
+          const targetDegrees = extraTurns * 360 + (options.length - segmentIndex) * degreesPerSegment - (degreesPerSegment / 2);
+
+          wheel.style.transform = 'rotate(' + targetDegrees + 'deg)';
+
+          setTimeout(function() {
+            const wonPrize = options[segmentIndex];
+            const prizeText = wonPrize.label || wonPrize.value;
+            input.value = prizeText;
+            if (prizeLabelSpan) {
+              prizeLabelSpan.textContent = prizeText;
+            }
+            successContainer.classList.remove('hidden');
+
+            // Post result back to server
+            const formData = new FormData(form);
+            fetch(form.action, {
+              method: 'POST',
+              body: new URLSearchParams(formData),
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            }).catch(err => console.error("Error submitting spin result:", err));
+          }, ${Number(props.spinDuration ?? 4) * 1000 + 100});
+        });
+      })();
+    </script>
   </div>`;
 };
 
@@ -1262,11 +1831,13 @@ const renderBlockInner = (block, target, theme) => {
         ...block,
         props: {
           ...(block.props || {}),
-          amp: target === "amp"
+          amp: target === "amp" || target === "formPage"
         }
       }, theme);
     case "footer":
       return renderFooter(block, theme, target);
+    case "spinWheel":
+      return renderSpinWheel(block, theme, target);
     default:
       return "";
   }
@@ -1319,9 +1890,10 @@ const htmlDeviceColorStyles = (theme) => {
 const ampDeviceColorStyles = (theme) => {
   return `
     @media only screen and (max-width:${SMARTPHONE_BREAKPOINT}px) {
-      .email-shell{width:100% !important;max-width:100% !important}
-      .email-content{width:100% !important}
-      .email-amp-image{max-width:100% !important}
+      .email-shell{width:100%;max-width:100%}
+      .email-content{width:100%}
+      .email-amp-image{max-width:100%}
+      .hosted-form-banner{max-width:100%}
     }`;
 };
 
@@ -1335,8 +1907,17 @@ const interactiveBlockTypes = new Set([
   "booking",
   "quiz",
   "productFeedback",
-  "rsvp"
+  "rsvp",
+  "spinWheel"
 ]);
+
+const getHostedFormBannerBlock = (blocks, formBlock) => {
+  const isImageBlock = (block) => block?.type === "image" && block.props?.src;
+  const formIndex = blocks.indexOf(formBlock);
+  const blocksBeforeForm = formIndex > -1 ? blocks.slice(0, formIndex) : blocks;
+
+  return blocksBeforeForm.find(isImageBlock) || blocks.find(isImageBlock);
+};
 
 const htmlDocument = (sourceJson) => {
   const theme = getTheme(sourceJson);
@@ -1352,11 +1933,11 @@ const htmlDocument = (sourceJson) => {
   ${htmlDeviceColorStyles(theme)}
 </head>
 <body class="email-bg" style="${style({
-  margin: "0",
-  padding: "0",
-  "background-color": theme.backgroundColor,
-  ...backgroundImageStyles(theme.backgroundImage)
-})}">
+    margin: "0",
+    padding: "0",
+    "background-color": theme.backgroundColor,
+    ...backgroundImageStyles(theme.backgroundImage)
+  })}">
   <div style="display:none;max-height:0;overflow:hidden;color:transparent">{{preheader}}</div>
   <table class="email-bg" role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="${style({
     "background-color": theme.backgroundColor,
@@ -1365,12 +1946,12 @@ const htmlDocument = (sourceJson) => {
     <tr>
       <td align="center" style="padding:0">
         <table class="email-shell" role="presentation" width="${theme.width}" border="0" cellpadding="0" cellspacing="0" style="${style({
-          width: `${theme.width}px`,
-          "max-width": "100%",
-          margin: "0 auto",
-          "background-color": theme.contentColor,
-          ...backgroundImageStyles(theme.contentBackgroundImage)
-        })}">
+    width: `${theme.width}px`,
+    "max-width": "100%",
+    margin: "0 auto",
+    "background-color": theme.contentColor,
+    ...backgroundImageStyles(theme.contentBackgroundImage)
+  })}">
           <tr>
             <td class="email-content" style="padding:0;color:${theme.textColor}">
               ${body}
@@ -1382,6 +1963,71 @@ const htmlDocument = (sourceJson) => {
   </table>
 </body>
 </html>`;
+};
+
+const getSpinWheelStyles = (sourceJson) => {
+  const blocks = typeof sourceJson.blocks !== 'undefined' ? sourceJson.blocks : (typeof getBlocks === 'function' ? getBlocks(sourceJson) : []);
+  const spinWheelBlock = (Array.isArray(blocks) ? blocks : []).find(b => b.type === "spinWheel");
+  if (!spinWheelBlock) {
+    return "";
+  }
+
+  return `
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      border: 1px solid #e5e7eb;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .btn {
+      background: #7c3aed;
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 36px;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+    .result-box {
+      background: #ecfdf5;
+      border: 2px solid #34d399;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      margin-top: 16px;
+    }
+    .result-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .result-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #047857;
+      margin-bottom: 6px;
+    }
+    .result-prize {
+      font-size: 16px;
+      font-weight: 600;
+      color: #064e3b;
+    }
+  `;
 };
 
 const ampDocument = (sourceJson) => {
@@ -1403,23 +2049,31 @@ const ampDocument = (sourceJson) => {
   <style amp4email-boilerplate>body{visibility:hidden}</style>
   <style amp-custom>
     body{${style({
-      margin: "0",
-      "background-color": theme.backgroundColor,
-      ...backgroundImageStyles(theme.backgroundImage),
-      "font-family": theme.fontFamily,
-      color: theme.textColor
-    })}}
+    margin: "0",
+    "background-color": theme.backgroundColor,
+    ...backgroundImageStyles(theme.backgroundImage),
+    "font-family": theme.fontFamily,
+    color: theme.textColor
+  })}}
     .email-shell{${style({
-      width: `${theme.width}px`,
-      "max-width": "100%",
-      margin: "0 auto",
-      "background-color": theme.contentColor,
-      ...backgroundImageStyles(theme.contentBackgroundImage),
-      padding: "0"
-    })}}
+    width: `${theme.width}px`,
+    "max-width": "100%",
+    margin: "0 auto",
+    "background-color": theme.contentColor,
+    ...backgroundImageStyles(theme.contentBackgroundImage),
+    padding: "0"
+  })}}
     .email-content{color:${theme.textColor}}
     a{color:${theme.primaryColor}}
+    form.amp-form-submitting .form-content-wrapper,
+    form.amp-form-submit-success .form-content-wrapper {
+      display: none;
+    }
+    [submitting], [submit-success], [submit-error] {
+      display: none;
+    }
     ${ampDeviceColorStyles(theme)}
+    ${getSpinWheelStyles(sourceJson)}
   </style>
 </head>
 <body class="email-bg">
@@ -1432,9 +2086,71 @@ const ampDocument = (sourceJson) => {
 
 const formDocument = (sourceJson) => {
   const theme = getTheme(sourceJson);
-  const formBlock = getBlocks(sourceJson).find((block) => interactiveBlockTypes.has(block.type));
+  const blocks = getBlocks(sourceJson);
+  const carouselScript = hasBlockType(sourceJson, "carousel")
+    ? '<script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>'
+    : "";
+  const formBlock = blocks.find((block) => interactiveBlockTypes.has(block.type));
+  const bannerBlock = getHostedFormBannerBlock(blocks, formBlock);
+
+  if (bannerBlock) {
+    const props = bannerBlock.props || {};
+    const requestedWidth = numberFrom(
+      props.hostedFormWidth,
+      props.formPageWidth,
+      props.bannerWidth,
+      props.width,
+      props.imageWidth
+    );
+    theme.bannerWidth = Math.min(
+      requestedWidth || HOSTED_FORM_BANNER_WIDTH,
+      HOSTED_FORM_WIDTH
+    );
+  }
+
+  const formMaxWidth = firstValue(
+    formBlock?.props?.formMaxWidth,
+    formBlock?.props?.formWidth,
+    theme.bannerWidth,
+    theme.width,
+    560
+  );
+
+  const allowedFormPageBlocks = new Set([
+    "divider",
+    "spacer",
+    "heading",
+    "text",
+    "footer",
+    "social",
+    "socialLinks",
+    "socialIcons",
+    "carousel"
+  ]);
+
   const body = formBlock
-    ? renderBlock(formBlock, "formPage", theme)
+    ? blocks
+      .map((block) => {
+        if (block === formBlock) {
+          return renderBlock(block, "formPage", theme);
+        }
+        if (block === bannerBlock) {
+          return renderHostedFormBanner(block, theme);
+        }
+        if (allowedFormPageBlocks.has(block.type)) {
+          const html = renderBlock(block, "formPage", theme);
+          if (!html) return null;
+          return `<div style="${style({
+            margin: "0 auto",
+            width: "100%",
+            "max-width": `${formMaxWidth}px`,
+            "box-sizing": "border-box"
+          })}">${html}</div>`;
+        }
+        return null;
+      })
+      .filter(Boolean)
+      .join("\n")
     : `<p style="font-family:${theme.fontFamily};text-align:center">No form block is available.</p>`;
 
   return `<!doctype html>
@@ -1447,19 +2163,38 @@ const formDocument = (sourceJson) => {
   <title>${escapeHtml(sourceJson.formTitle || sourceJson.name || "Form")}</title>
   <script async src="https://cdn.ampproject.org/v0.js"></script>
   <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  ${carouselScript}
   <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
   <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
   <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</style></noscript>
   <style amp-custom>
     body{${style({
-      margin: "0",
-      "background-color": theme.backgroundColor,
-      ...backgroundImageStyles(theme.backgroundImage),
-      padding: "24px",
-      "font-family": theme.fontFamily,
-      color: theme.textColor
-    })}}
+    margin: "0",
+    "background-color": theme.backgroundColor,
+    ...backgroundImageStyles(theme.backgroundImage),
+    padding: "24px",
+    "font-family": theme.fontFamily,
+    color: theme.textColor
+  })}}
     input,textarea,select{font-family:${theme.fontFamily}}
+    form.amp-form-submitting .form-content-wrapper,
+    form.amp-form-submit-success .form-content-wrapper {
+      display: none;
+    }
+    [submitting], [submit-success], [submit-error] {
+      display: none;
+    }
+    .prize-announcement {
+      animation: fadeIn 0.5s ease-out forwards;
+      animation-delay: 4s;
+      opacity: 0;
+    }
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+    .hidden {
+      display: none;
+    }
     ${ampDeviceColorStyles(theme)}
   </style>
 </head>
@@ -1611,12 +2346,20 @@ export const builderBlockCatalog = [
       type: "survey",
       props: {
         title: "Quick survey",
-        questions: [
+        description: "Collect customer details directly from this campaign.",
+        submitText: "Submit",
+        fields: [
           {
             name: "experience",
             label: "How was your experience?",
             type: "select",
+            required: true,
             options: ["Excellent", "Good", "Average", "Poor"]
+          },
+          {
+            name: "feedback",
+            label: "What can we improve?",
+            type: "textarea"
           }
         ]
       }
@@ -1664,7 +2407,9 @@ export const builderBlockCatalog = [
     block: {
       type: "rsvp",
       props: {
-        question: "Will you attend?"
+        title: "Event RSVP",
+        question: "Will you attend?",
+        options: ["Yes", "Maybe", "No"]
       }
     }
   },
@@ -1799,6 +2544,119 @@ export const builderEditorConfig = {
       label: "does not equal"
     }
   ],
+  fieldTypes: [
+    {
+      value: "text",
+      label: "Text"
+    },
+    {
+      value: "email",
+      label: "Email"
+    },
+    {
+      value: "tel",
+      label: "Phone"
+    },
+    {
+      value: "number",
+      label: "Number"
+    },
+    {
+      value: "textarea",
+      label: "Long text"
+    },
+    {
+      value: "select",
+      label: "Dropdown",
+      supportsOptions: true
+    },
+    {
+      value: "radio",
+      label: "Single choice",
+      supportsOptions: true
+    },
+    {
+      value: "checkbox",
+      label: "Multiple choice",
+      supportsOptions: true
+    },
+    {
+      value: "date",
+      label: "Date"
+    }
+  ],
+  blockSchemas: {
+    form: {
+      label: "Form",
+      fieldPath: "props.fields",
+      fieldLabel: "Form fields",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      emptyState: "Add form fields from the inspector",
+      controls: ["title", "description", "submitText", "fields", "successMessage"]
+    },
+    survey: {
+      label: "Survey",
+      fieldPath: "props.fields",
+      legacyFieldPath: "props.questions",
+      fieldLabel: "Survey questions",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      emptyState: "Add survey questions from the inspector",
+      controls: ["title", "description", "submitText", "fields", "successMessage"]
+    },
+    poll: {
+      label: "Poll",
+      fieldPath: "props.fields",
+      optionPath: "props.options",
+      fieldLabel: "Poll question",
+      allowAddFields: false,
+      allowEditOptions: true,
+      controls: ["title", "question", "options", "submitText"]
+    },
+    rating: {
+      label: "Rating",
+      fieldPath: "props.fields",
+      fieldLabel: "Rating fields",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      controls: ["title", "question", "max", "fields", "submitText"]
+    },
+    nps: {
+      label: "NPS",
+      fieldPath: "props.fields",
+      fieldLabel: "NPS fields",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      controls: ["title", "question", "fields", "submitText"]
+    },
+    appointment: {
+      label: "Appointment",
+      fieldPath: "props.fields",
+      optionPath: "props.slots",
+      fieldLabel: "Appointment fields",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      allowEditOptions: true,
+      controls: ["title", "description", "slots", "fields", "submitText"]
+    },
+    rsvp: {
+      label: "Event RSVP",
+      fieldPath: "props.fields",
+      optionPath: "props.options",
+      fieldLabel: "RSVP fields",
+      allowAddFields: true,
+      allowRemoveFields: true,
+      allowReorderFields: true,
+      allowEditOptions: true,
+      controls: ["title", "question", "options", "fields", "submitText"]
+    }
+  },
   personalizationExamples: [
     "{{firstName | default:'there'}}",
     "{{#if plan == \"pro\"}}Pro-only content{{/if}}",

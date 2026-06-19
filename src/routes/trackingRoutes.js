@@ -7,9 +7,11 @@ import {
    ampFormTracking,
    htmlFormTracking
 } from "../controllers/trackingController.js";
+import { handleSpinWheelAmpSubmit } from "../controllers/spinWheelController.js";
 
 import {
    analyticsOverview,
+   analyticsSummary,
    deepAnalytics,
    exportAnalyticsCsv
 } from "../controllers/analyticsController.js";
@@ -44,7 +46,24 @@ router.get(
 
 router.post(
    "/form-amp/:id",
-   ampFormTracking
+   (req, res, next) => {
+      let parsedBody = req.body || {};
+      if (typeof parsedBody === "string") {
+         const trimmed = parsedBody.trim();
+         if (trimmed) {
+            try {
+               parsedBody = JSON.parse(trimmed);
+            } catch {
+               parsedBody = Object.fromEntries(new URLSearchParams(trimmed));
+            }
+         }
+      }
+      const isSpinWheel = parsedBody.is_spin_wheel === "true" || !!parsedBody.spin_wheel_block_id;
+      if (isSpinWheel) {
+         return handleSpinWheelAmpSubmit(req, res);
+      }
+      return ampFormTracking(req, res);
+   }
 );
 
 router.post(
@@ -55,6 +74,8 @@ router.post(
 // analytic routes
 
 router.get("/analytics", analyticsOverview);
+
+router.get("/analytics/summary", analyticsSummary);
 
 router.get("/analytics/deep", deepAnalytics);
 

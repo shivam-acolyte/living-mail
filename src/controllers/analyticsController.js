@@ -1,4 +1,43 @@
 import Tracking from "../models/Tracking.js";
+import DeliveryStatusEvent from "../models/DeliveryStatusEvent.js";
+import { postgres } from "../config/postgres.js";
+
+// simple in-memory cache for deep analytics to speed up repeated requests
+const deepCache = new Map();
+const deepOngoing = new Map();
+const DEEP_CACHE_TTL = Number(process.env.DEEP_ANALYTICS_TTL_MS || 60 * 1000); // default 60s
+
+const makeQueryKey = (query) => {
+  // stable stringify for query object
+  const entries = Object.entries(query || {}).sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(Object.fromEntries(entries));
+};
+
+const getCachedDeepAnalytics = async (match, queryKey, force = false) => {
+  const now = Date.now();
+  const cached = deepCache.get(queryKey);
+
+  if (!force && cached && (now - cached.ts) < DEEP_CACHE_TTL) {
+    return cached.data;
+  }
+
+  if (deepOngoing.has(queryKey)) {
+    return deepOngoing.get(queryKey);
+  }
+
+  const promise = (async () => {
+    try {
+      const data = await getDeepAnalytics(match);
+      deepCache.set(queryKey, { ts: Date.now(), data });
+      return data;
+    } finally {
+      deepOngoing.delete(queryKey);
+    }
+  })();
+
+  deepOngoing.set(queryKey, promise);
+  return promise;
+};
 
 const EVENT_TYPES = [
   "sent",
@@ -23,7 +62,11 @@ const getDateRange = (query) => {
   }
 
   if (query.to) {
-    match.createdAt.$lte = new Date(query.to);
+    const toDate = new Date(query.to);
+    if (typeof query.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.to)) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+    match.createdAt.$lte = toDate;
   }
 
   return match;
@@ -91,6 +134,67 @@ const getAnalyticsMatch = (query) => {
   }
 
   return match;
+};
+
+const DELIVERY_STATUS_FILTER_FIELDS = new Set([
+  "createdAt",
+  "trackingId",
+  "email",
+  "subject",
+  "campaignName",
+  "campaignType",
+  "templateId",
+  "templateSlug",
+  "templateName",
+  "messageId",
+  "senderEmail",
+  "senderProvider",
+  "deliveryProvider",
+  "providerStatus",
+  "bounceType"
+]);
+
+const getDeliveryStatusMatch = (match = {}) => {
+  if (match.eventType && match.eventType !== "delivered") {
+    return null;
+  }
+
+  const deliveryMatch = {
+    eventType: "delivered"
+  };
+
+  for (const [field, condition] of Object.entries(match)) {
+    if (field === "eventType") {
+      continue;
+    }
+
+    if (!DELIVERY_STATUS_FILTER_FIELDS.has(field)) {
+      return null;
+    }
+
+    deliveryMatch[field] = condition;
+  }
+
+  return deliveryMatch;
+};
+
+const getDeliveredMetric = async (match) => {
+  const deliveryMatch = getDeliveryStatusMatch(match);
+
+  if (!deliveryMatch) {
+    return null;
+  }
+
+  const trackingIds = await DeliveryStatusEvent.distinct("trackingId", deliveryMatch);
+  const emails = trackingIds.length
+    ? []
+    : await DeliveryStatusEvent.distinct("email", deliveryMatch);
+  const unique = trackingIds.length || emails.length;
+
+  return {
+    total: unique,
+    unique
+  };
 };
 
 const safeRate = (value, total) => {
@@ -178,7 +282,7 @@ const normalizeGroupedRows = (rows, labelKey) => {
 };
 
 const getGroupedAnalytics = async (match, labelExpression, labelKey) => {
-  const rows = await Tracking.aggregate([
+  const rows = await Tracking.aggregateMetricsBy(match, labelExpression) || await Tracking.aggregate([
     { $match: match },
     ...buildMetricProjection(labelExpression)
   ]);
@@ -206,10 +310,41 @@ const getOverview = async (match) => {
   ]);
 
   const metrics = Object.fromEntries(rows.map((row) => [row._id, row]));
-  const uniqueRecipients = await Tracking.distinct("trackingId", match);
+  const deliveredMetric = await getDeliveredMetric(match);
+
+  if (deliveredMetric?.total) {
+    metrics.delivered = deliveredMetric;
+  }
+
+  const { sql: trackingWhere, values: trackingParams } = Tracking.buildWhere(match);
+  const trackingSql = `SELECT DISTINCT tracking_id FROM tracking_events ${trackingWhere ? `WHERE ${trackingWhere}` : ""}`;
+
+  let unionSql = trackingSql;
+  let unionParams = [...trackingParams];
+
+  const deliveryMatch = getDeliveryStatusMatch(match);
+  if (deliveryMatch) {
+    const { sql: deliveryWhere, values: deliveryParams } = DeliveryStatusEvent.buildWhere(deliveryMatch);
+    let deliveryWhereShifted = deliveryWhere;
+    const offset = trackingParams.length;
+    if (offset > 0 && deliveryWhere) {
+      deliveryWhereShifted = deliveryWhere.replace(/\$(\d+)/g, (_, num) => `$${Number(num) + offset}`);
+    }
+
+    unionSql = `
+      SELECT tracking_id FROM (${trackingSql}) AS t
+      UNION
+      SELECT tracking_id FROM delivery_status_events ${deliveryWhereShifted ? `WHERE ${deliveryWhereShifted}` : ""}
+    `;
+    unionParams = [...trackingParams, ...deliveryParams];
+  }
+
+  const countQuery = `SELECT COUNT(*)::int AS count FROM (${unionSql}) AS u WHERE tracking_id IS NOT NULL`;
+  const countResult = await postgres.query(countQuery, unionParams);
+  const totalRecipients = countResult.rows[0]?.count || 0;
 
   return {
-    totalRecipients: uniqueRecipients.length,
+    totalRecipients,
     ...normalizeMetrics(metrics)
   };
 };
@@ -244,199 +379,234 @@ const getTimeline = async (match, interval) => {
 };
 
 const getBreakdown = async (match, field) => {
-  return Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: { $in: ["open", "click", "form_submit"] }
-      }
-    },
-    {
-      $group: {
-        _id: `$render.${field}`,
-        total: { $sum: 1 },
-        uniqueRecipients: { $addToSet: "$trackingId" }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        name: { $ifNull: ["$_id", "Unknown"] },
-        total: 1,
-        unique: { $size: "$uniqueRecipients" }
-      }
-    },
-    { $sort: { total: -1, name: 1 } }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: { $in: ["open", "click", "form_submit"] }
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    SELECT 
+      COALESCE(render->>'${field}', 'Unknown') AS name,
+      COUNT(*)::int AS total,
+      COUNT(DISTINCT tracking_id)::int AS unique
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY name
+    ORDER BY total DESC, name ASC
+  `;
+
+  const result = await postgres.query(query, values);
+  return result.rows;
 };
 
 const getLinkAnalytics = async (match) => {
-  return Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: "click"
-      }
-    },
-    {
-      $group: {
-        _id: {
-          url: "$clickedUrl",
-          domain: "$clickedDomain"
-        },
-        totalClicks: { $sum: 1 },
-        uniqueClicks: { $addToSet: "$trackingId" },
-        botClicks: {
-          $sum: {
-            $cond: ["$isBot", 1, 0]
-          }
-        }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        url: { $ifNull: ["$_id.url", "Unknown"] },
-        domain: { $ifNull: ["$_id.domain", "Unknown"] },
-        totalClicks: 1,
-        uniqueClicks: { $size: "$uniqueClicks" },
-        botClicks: 1
-      }
-    },
-    { $sort: { totalClicks: -1 } },
-    { $limit: 25 }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: "click"
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    SELECT 
+      COALESCE(clicked_url, 'Unknown') AS url,
+      COALESCE(clicked_domain, 'Unknown') AS domain,
+      COUNT(*)::int AS "totalClicks",
+      COUNT(DISTINCT tracking_id)::int AS "uniqueClicks",
+      SUM(CASE WHEN is_bot = true THEN 1 ELSE 0 END)::int AS "botClicks"
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY clicked_url, clicked_domain
+    ORDER BY "totalClicks" DESC
+    LIMIT 25
+  `;
+
+  const result = await postgres.query(query, values);
+  return result.rows;
+};
+
+const getDeliveryEventsByTrackingId = async (match, trackingIds = []) => {
+  const deliveryMatch = getDeliveryStatusMatch(match);
+  const knownTrackingIds = trackingIds.filter(Boolean);
+
+  if (!deliveryMatch || !knownTrackingIds.length) {
+    return new Map();
+  }
+
+  const queryMatch = {
+    ...deliveryMatch,
+    trackingId: { $in: knownTrackingIds }
+  };
+  const { sql: whereSql, values } = DeliveryStatusEvent.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    SELECT 
+      tracking_id AS "trackingId",
+      event_type AS "eventType",
+      occurred_at AS "occurredAt",
+      created_at AS "createdAt",
+      provider_status AS "providerStatus",
+      delivery_meta AS "deliveryMeta",
+      bounce_type AS "bounceType",
+      bounce_reason AS "bounceReason"
+    FROM delivery_status_events
+    ${sqlWhere}
+    ORDER BY created_at ASC
+  `;
+
+  const result = await postgres.query(query, values);
+  const eventsByTrackingId = new Map();
+
+  for (const event of result.rows) {
+    const events = eventsByTrackingId.get(event.trackingId) || [];
+    events.push({
+      eventType: event.eventType,
+      createdAt: event.occurredAt || event.createdAt,
+      providerStatus: event.providerStatus,
+      deliveryMeta: event.deliveryMeta,
+      bounceType: event.bounceType,
+      bounceReason: event.bounceReason
+    });
+    eventsByTrackingId.set(event.trackingId, events);
+  }
+
+  return eventsByTrackingId;
 };
 
 const getFormFieldAnalytics = async (match) => {
-  return Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: "form_submit"
-      }
-    },
-    {
-      $project: {
-        fields: { $objectToArray: "$formSubmission" }
-      }
-    },
-    { $unwind: "$fields" },
-    {
-      $group: {
-        _id: {
-          field: "$fields.k",
-          value: "$fields.v"
-        },
-        count: { $sum: 1 }
-      }
-    },
-    { $sort: { "_id.field": 1, count: -1 } },
-    {
-      $group: {
-        _id: "$_id.field",
-        totalResponses: { $sum: "$count" },
-        topValues: {
-          $push: {
-            value: "$_id.value",
-            count: "$count"
-          }
-        }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        field: "$_id",
-        totalResponses: 1,
-        topValues: { $slice: ["$topValues", 8] }
-      }
-    },
-    { $sort: { totalResponses: -1 } }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: "form_submit"
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    WITH fields AS (
+      SELECT f.key AS field, f.value AS value
+      FROM tracking_events, LATERAL jsonb_each_text(form_submission) f
+      ${sqlWhere}
+    ),
+    grouped AS (
+      SELECT field, value, COUNT(*)::int AS count
+      FROM fields
+      GROUP BY field, value
+    ),
+    ranked AS (
+      SELECT field, value, count,
+             ROW_NUMBER() OVER (PARTITION BY field ORDER BY count DESC) as rn
+      FROM grouped
+    )
+    SELECT 
+      field, 
+      SUM(count)::int AS "totalResponses",
+      COALESCE(
+        json_agg(json_build_object('value', value, 'count', count) ORDER BY count DESC) FILTER (WHERE rn <= 8),
+        '[]'::json
+      ) AS "topValues"
+    FROM ranked
+    GROUP BY field
+    ORDER BY "totalResponses" DESC
+  `;
+
+  const result = await postgres.query(query, values);
+  return result.rows;
 };
 
 const getRecipientJourney = async (match) => {
-  const rows = await Tracking.aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: "$trackingId",
-        email: { $first: "$email" },
-        campaignName: { $first: "$campaignName" },
-        campaignType: { $first: "$campaignType" },
-        templateSlug: { $first: "$templateSlug" },
-        senderEmail: { $first: "$senderEmail" },
-        firstSentAt: { $min: "$sentAt" },
-        lastActivityAt: { $max: "$createdAt" },
-        opens: {
-          $sum: {
-            $cond: [{ $eq: ["$eventType", "open"] }, 1, 0]
-          }
-        },
-        clicks: {
-          $sum: {
-            $cond: [{ $eq: ["$eventType", "click"] }, 1, 0]
-          }
-        },
-        forms: {
-          $sum: {
-            $cond: [{ $eq: ["$eventType", "form_submit"] }, 1, 0]
-          }
-        },
-        bounces: {
-          $sum: {
-            $cond: [{ $eq: ["$eventType", "bounce"] }, 1, 0]
-          }
-        },
-        unsubscribes: {
-          $sum: {
-            $cond: [{ $eq: ["$eventType", "unsubscribe"] }, 1, 0]
-          }
-        },
-        botEvents: {
-          $sum: {
-            $cond: ["$isBot", 1, 0]
-          }
-        },
-        events: {
-          $push: {
-            eventType: "$eventType",
-            createdAt: "$createdAt",
-            clickedUrl: "$clickedUrl",
-            clickedDomain: "$clickedDomain",
-            formSubmission: "$formSubmission",
-            providerStatus: "$providerStatus",
-            deliveryMeta: "$deliveryMeta",
-            deliveryStatusRaw: "$deliveryStatusRaw",
-            bounceType: "$bounceType",
-            bounceReason: "$bounceReason",
-            render: "$render",
-            isBot: "$isBot",
-            botReason: "$botReason"
-          }
-        }
+  const { sql: whereSql, values } = Tracking.buildWhere(match);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    SELECT 
+      tracking_id AS "trackingId",
+      MIN(email) AS email,
+      MIN(campaign_name) AS "campaignName",
+      MIN(campaign_type) AS "campaignType",
+      MIN(template_slug) AS "templateSlug",
+      MIN(sender_email) AS "senderEmail",
+      MIN(sent_at) AS "firstSentAt",
+      MAX(created_at) AS "lastActivityAt",
+      SUM(CASE WHEN event_type = 'open' THEN 1 ELSE 0 END)::int AS opens,
+      SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END)::int AS clicks,
+      SUM(CASE WHEN event_type = 'form_submit' THEN 1 ELSE 0 END)::int AS forms,
+      SUM(CASE WHEN event_type = 'bounce' THEN 1 ELSE 0 END)::int AS bounces,
+      SUM(CASE WHEN event_type = 'unsubscribe' THEN 1 ELSE 0 END)::int AS unsubscribes,
+      SUM(CASE WHEN is_bot = true THEN 1 ELSE 0 END)::int AS "botEvents",
+      (
+        SUM(CASE WHEN event_type = 'open' THEN 1 ELSE 0 END) * 1 +
+        SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END) * 3 +
+        SUM(CASE WHEN event_type = 'form_submit' THEN 1 ELSE 0 END) * 8 +
+        SUM(CASE WHEN event_type = 'unsubscribe' THEN 1 ELSE 0 END) * -10 +
+        SUM(CASE WHEN event_type = 'bounce' THEN 1 ELSE 0 END) * -10
+      )::int AS score
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY tracking_id
+    ORDER BY score DESC, "lastActivityAt" DESC
+    LIMIT 500
+  `;
+
+  const result = await postgres.query(query, values);
+  const trackingIds = result.rows.map((row) => row.trackingId).filter(Boolean);
+
+  const eventsByTrackingId = new Map();
+  if (trackingIds.length > 0) {
+    const journeyEventsMatch = {
+      ...match,
+      trackingId: { $in: trackingIds }
+    };
+    const { sql: eventsWhereSql, values: eventsValues } = Tracking.buildWhere(journeyEventsMatch);
+    const eventsQuery = `
+      SELECT 
+        tracking_id AS "trackingId",
+        event_type AS "eventType",
+        created_at AS "createdAt",
+        clicked_url AS "clickedUrl",
+        clicked_domain AS "clickedDomain",
+        form_submission AS "formSubmission",
+        provider_status AS "providerStatus",
+        delivery_meta AS "deliveryMeta",
+        bounce_type AS "bounceType",
+        bounce_reason AS "bounceReason",
+        render,
+        is_bot AS "isBot",
+        bot_reason AS "botReason"
+      FROM tracking_events
+      WHERE ${eventsWhereSql}
+    `;
+    const eventsResult = await postgres.query(eventsQuery, eventsValues);
+    for (const event of eventsResult.rows) {
+      const tId = event.trackingId;
+      if (!eventsByTrackingId.has(tId)) {
+        eventsByTrackingId.set(tId, []);
       }
-    },
-    {
-      $addFields: {
-        score: {
-          $add: [
-            { $multiply: ["$opens", 1] },
-            { $multiply: ["$clicks", 3] },
-            { $multiply: ["$forms", 8] },
-            { $multiply: ["$unsubscribes", -10] },
-            { $multiply: ["$bounces", -10] }
-          ]
-        }
-      }
-    },
-    { $sort: { score: -1, lastActivityAt: -1 } },
-    { $limit: 500 }
-  ]);
+      eventsByTrackingId.get(tId).push(event);
+    }
+  }
+
+  const rows = result.rows.map((row) => {
+    const events = eventsByTrackingId.get(row.trackingId) || [];
+    return {
+      ...row,
+      _id: row.trackingId,
+      events
+    };
+  });
+
+  const deliveryEventsByTrackingId = await getDeliveryEventsByTrackingId(
+    match,
+    rows.map((row) => row._id)
+  );
 
   return rows.map((row) => {
-    const events = row.events
+    const events = [
+      ...(row.events || []),
+      ...(deliveryEventsByTrackingId.get(row._id) || [])
+    ]
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
     const openEvents = events.filter((event) => event.eventType === "open");
@@ -506,7 +676,20 @@ const getRecipientJourney = async (match) => {
         submittedAt: event.createdAt,
         data: event.formSubmission || {}
       })),
-      events: events.slice(0, 60)
+      events: events.slice(0, 60).map((event) => ({
+        eventType: event.eventType,
+        createdAt: event.createdAt,
+        clickedUrl: event.clickedUrl || "",
+        clickedDomain: event.clickedDomain || "",
+        formSubmission: event.formSubmission || {},
+        providerStatus: event.providerStatus || "",
+        deliveryMeta: event.deliveryMeta || {},
+        bounceType: event.bounceType || "",
+        bounceReason: event.bounceReason || "",
+        render: event.render || {},
+        isBot: Boolean(event.isBot),
+        botReason: event.botReason || ""
+      }))
     };
   });
 };
@@ -526,48 +709,52 @@ const getEngagementLists = async (match) => {
 };
 
 const getPerformanceWindows = async (match) => {
-  const events = await Tracking
-    .find(match)
-    .select("trackingId eventType createdAt sentAt")
-    .lean();
+  const { sql: whereSql, values } = Tracking.buildWhere(match);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
 
-  const sentAtByTrackingId = new Map();
+  const query = `
+    WITH filtered_events AS (
+      SELECT tracking_id, event_type, created_at, sent_at
+      FROM tracking_events
+      ${sqlWhere}
+    ),
+    sent_times AS (
+      SELECT 
+        tracking_id, 
+        MIN(COALESCE(sent_at, created_at)) AS sent_time
+      FROM filtered_events
+      WHERE event_type = 'sent'
+      GROUP BY tracking_id
+    ),
+    events_with_delta AS (
+      SELECT 
+        f.event_type,
+        EXTRACT(EPOCH FROM (f.created_at - s.sent_time)) AS delta_seconds
+      FROM filtered_events f
+      JOIN sent_times s ON f.tracking_id = s.tracking_id
+      WHERE f.event_type != 'sent'
+    )
+    SELECT 
+      event_type AS "eventType",
+      SUM(CASE WHEN delta_seconds >= 0 AND delta_seconds <= 3600 THEN 1 ELSE 0 END)::int AS count_1h,
+      SUM(CASE WHEN delta_seconds >= 0 AND delta_seconds <= 86400 THEN 1 ELSE 0 END)::int AS count_24h
+    FROM events_with_delta
+    GROUP BY event_type
+  `;
 
-  events.forEach((event) => {
-    if (event.eventType === "sent") {
-      const previous = sentAtByTrackingId.get(event.trackingId);
-      const sentAt = event.sentAt || event.createdAt;
-
-      if (!previous || new Date(sentAt) < new Date(previous)) {
-        sentAtByTrackingId.set(event.trackingId, sentAt);
-      }
-    }
-  });
+  const dbResult = await postgres.query(query, values);
 
   const windows = {
     firstHour: {},
     first24Hours: {}
   };
 
-  const addEvent = (bucket, eventType) => {
-    bucket[eventType] = (bucket[eventType] || 0) + 1;
-  };
-
-  events.forEach((event) => {
-    const sentAt = sentAtByTrackingId.get(event.trackingId);
-
-    if (!sentAt || event.eventType === "sent") {
-      return;
+  dbResult.rows.forEach((row) => {
+    if (row.count_1h > 0) {
+      windows.firstHour[row.eventType] = row.count_1h;
     }
-
-    const delta = new Date(event.createdAt) - new Date(sentAt);
-
-    if (delta >= 0 && delta <= 60 * 60 * 1000) {
-      addEvent(windows.firstHour, event.eventType);
-    }
-
-    if (delta >= 0 && delta <= 24 * 60 * 60 * 1000) {
-      addEvent(windows.first24Hours, event.eventType);
+    if (row.count_24h > 0) {
+      windows.first24Hours[row.eventType] = row.count_24h;
     }
   });
 
@@ -575,34 +762,34 @@ const getPerformanceWindows = async (match) => {
 };
 
 const getBotFiltering = async (match) => {
-  const rows = await Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: { $in: ["open", "click"] }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          eventType: "$eventType",
-          isBot: "$isBot"
-        },
-        total: { $sum: 1 }
-      }
-    }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: { $in: ["open", "click"] }
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
 
+  const query = `
+    SELECT 
+      event_type AS "eventType",
+      is_bot AS "isBot",
+      COUNT(*)::int AS total
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY event_type, is_bot
+  `;
+
+  const dbResult = await postgres.query(query, values);
   const result = {
     opens: { total: 0, suspectedBots: 0, human: 0 },
     clicks: { total: 0, suspectedBots: 0, human: 0 }
   };
 
-  rows.forEach((row) => {
-    const key = row._id.eventType === "open" ? "opens" : "clicks";
+  dbResult.rows.forEach((row) => {
+    const key = row.eventType === "open" ? "opens" : "clicks";
     result[key].total += row.total;
 
-    if (row._id.isBot) {
+    if (row.isBot) {
       result[key].suspectedBots += row.total;
     } else {
       result[key].human += row.total;
@@ -613,34 +800,27 @@ const getBotFiltering = async (match) => {
 };
 
 const getBounceReasons = async (match) => {
-  return Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: "bounce"
-      }
-    },
-    {
-      $group: {
-        _id: {
-          type: "$bounceType",
-          reason: "$bounceReason"
-        },
-        total: { $sum: 1 },
-        uniqueRecipients: { $addToSet: "$trackingId" }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        type: { $ifNull: ["$_id.type", "unknown"] },
-        reason: { $ifNull: ["$_id.reason", "Unknown"] },
-        total: 1,
-        unique: { $size: "$uniqueRecipients" }
-      }
-    },
-    { $sort: { total: -1 } }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: "bounce"
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
+
+  const query = `
+    SELECT 
+      COALESCE(bounce_type, 'unknown') AS type,
+      COALESCE(bounce_reason, 'Unknown') AS reason,
+      COUNT(*)::int AS total,
+      COUNT(DISTINCT tracking_id)::int AS unique
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY bounce_type, bounce_reason
+    ORDER BY total DESC
+  `;
+
+  const result = await postgres.query(query, values);
+  return result.rows;
 };
 
 const getGmailQuotaUsage = async (match) => {
@@ -649,41 +829,31 @@ const getGmailQuotaUsage = async (match) => {
 
   const dailyLimit = Number(process.env.GMAIL_DAILY_LIMIT || 2000);
 
-  const rows = await Tracking.aggregate([
-    {
-      $match: {
-        ...match,
-        eventType: "sent",
-        senderProvider: "gmail",
-        createdAt: { $gte: startOfToday }
-      }
-    },
-    {
-      $group: {
-        _id: "$senderEmail",
-        sentToday: { $sum: 1 }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        senderEmail: { $ifNull: ["$_id", "Unknown"] },
-        provider: "gmail",
-        sentToday: 1,
-        dailyLimit: { $literal: dailyLimit },
-        remainingToday: { $max: [{ $subtract: [dailyLimit, "$sentToday"] }, 0] },
-        usageRate: {
-          $round: [
-            { $multiply: [{ $divide: ["$sentToday", dailyLimit] }, 100] },
-            2
-          ]
-        }
-      }
-    },
-    { $sort: { sentToday: -1 } }
-  ]);
+  const queryMatch = {
+    ...match,
+    eventType: "sent",
+    senderProvider: "gmail",
+    createdAt: { $gte: startOfToday }
+  };
+  const { sql: whereSql, values } = Tracking.buildWhere(queryMatch);
+  const sqlWhere = whereSql ? `WHERE ${whereSql}` : "";
 
-  return rows;
+  const query = `
+    SELECT 
+      COALESCE(sender_email, 'Unknown') AS "senderEmail",
+      'gmail' AS provider,
+      COUNT(*)::int AS "sentToday",
+      ${dailyLimit}::int AS "dailyLimit",
+      GREATEST(${dailyLimit} - COUNT(*), 0)::int AS "remainingToday",
+      ROUND((COUNT(*)::numeric / ${dailyLimit}) * 100, 2)::float AS "usageRate"
+    FROM tracking_events
+    ${sqlWhere}
+    GROUP BY sender_email
+    ORDER BY "sentToday" DESC
+  `;
+
+  const result = await postgres.query(query, values);
+  return result.rows;
 };
 
 const getDeepAnalytics = async (match) => {
@@ -717,7 +887,7 @@ const getDeepAnalytics = async (match) => {
     () => getGmailQuotaUsage(match)
   ];
   const analyticsResults = [];
-  const analyticsConcurrency = Number(process.env.ANALYTICS_QUERY_CONCURRENCY || 3);
+  const analyticsConcurrency = Number(process.env.ANALYTICS_QUERY_CONCURRENCY || 5);
 
   for (let index = 0; index < analyticsTasks.length; index += analyticsConcurrency) {
     const batch = analyticsTasks.slice(index, index + analyticsConcurrency);
@@ -949,7 +1119,110 @@ export const analyticsOverview = async (req, res) => {
   }
 };
 
-export const deepAnalytics = analyticsOverview;
+export const deepAnalytics = async (req, res) => {
+  try {
+    const match = getAnalyticsMatch(req.query);
+    const queryKey = makeQueryKey(req.query);
+    const force = req.query.force === "true";
+
+    const analytics = await getCachedDeepAnalytics(match, queryKey, force);
+
+    return res.json({
+      success: true,
+      filters: {
+        from: req.query.from || null,
+        to: req.query.to || null,
+        campaignName: req.query.campaignName || null,
+        campaignType: req.query.campaignType || null,
+        templateId: req.query.templateId || null,
+        templateSlug: req.query.templateSlug || null,
+        senderEmail: req.query.senderEmail || null
+      },
+      analytics: {
+        totalUsers: analytics.overview.totalRecipients,
+        totalSent: analytics.overview.sent,
+        totalDelivered: analytics.overview.delivered,
+        totalOpens: analytics.overview.totalOpens,
+        totalClicks: analytics.overview.totalClicks,
+        totalForms: analytics.overview.totalForms,
+        totalBounces: analytics.overview.bounces,
+        totalUnsubscribes: analytics.overview.unsubscribes,
+        totalSpamComplaints: analytics.overview.spamComplaints,
+        uniqueOpens: analytics.overview.uniqueOpens,
+        uniqueClicks: analytics.overview.uniqueClicks,
+        uniqueForms: analytics.overview.uniqueForms,
+        funnel: analytics.funnel,
+        campaignAnalytics: analytics.campaignComparison,
+        templateAnalytics: analytics.templatePerformance,
+        graphData: {
+          hourly: analytics.timeline.hourly,
+          daily: analytics.timeline.daily,
+          weekly: analytics.timeline.weekly
+        },
+        ...analytics
+      }
+    });
+  } catch (err) {
+    console.error("DEEP ANALYTICS ERROR:", err);
+    return res.status(500).json({ success: false, message: "Deep analytics error" });
+  }
+};
+
+export const analyticsSummary = async (req, res) => {
+  try {
+    const match = getAnalyticsMatch(req.query);
+
+    // lightweight summary: overview + hourly timeline
+    const overview = await getOverview(match);
+    const hourly = await getTimeline(match, "hourly");
+
+    // warm full analytics in background to make deep results faster for next request
+    warmDeepCache(req.query);
+
+    return res.json({
+      success: true,
+      analytics: {
+        totalUsers: overview.totalRecipients,
+        totalSent: overview.sent,
+        totalDelivered: overview.delivered,
+        totalOpens: overview.totalOpens,
+        totalClicks: overview.totalClicks,
+        totalForms: overview.totalForms,
+        totalBounces: overview.bounces,
+        totalUnsubscribes: overview.unsubscribes,
+        totalSpamComplaints: overview.spamComplaints,
+        uniqueOpens: overview.uniqueOpens,
+        uniqueClicks: overview.uniqueClicks,
+        uniqueForms: overview.uniqueForms,
+        funnel: getFunnel(overview),
+        graphData: {
+          hourly
+        }
+      }
+    });
+  } catch (err) {
+    console.error("ANALYTICS SUMMARY ERROR:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Analytics summary error"
+    });
+  }
+};
+
+// warm the deep analytics cache in background when summary is requested
+const warmDeepCache = (reqQuery) => {
+  try {
+    const match = getAnalyticsMatch(reqQuery || {});
+    const key = makeQueryKey(reqQuery || {});
+    // kick off compute but don't await
+    getCachedDeepAnalytics(match, key, false).catch((err) => {
+      console.warn("Warm deep analytics failed:", err?.message || err);
+    });
+  } catch (err) {
+    console.warn("Warm deep cache error:", err?.message || err);
+  }
+};
 
 export const exportAnalyticsCsv = async (req, res) => {
   try {

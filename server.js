@@ -1,14 +1,4 @@
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-dotenv.config({
-   path: path.join(__dirname, ".env")
-});
-
+import "./src/config/loadEnv.js";
 import app from "./src/app.js";
 import connectDB from "./src/config/db.js";
 import { closePostgres } from "./src/config/postgres.js";
@@ -16,6 +6,15 @@ import {
    startBulkEmailWorker,
    stopBulkEmailWorker
 } from "./src/services/bulkEmailService.js";
+import {
+   startDeliveryStatusWorker,
+   stopDeliveryStatusWorker
+} from "./src/services/deliveryStatusService.js";
+import {
+   startMaterializedViewWorker,
+   stopMaterializedViewWorker
+} from "./src/services/materializedViewService.js";
+
 
 await connectDB();
 
@@ -24,6 +23,9 @@ if (process.env.DISABLE_BULK_EMAIL_WORKER === "true") {
 } else {
    startBulkEmailWorker();
 }
+
+startDeliveryStatusWorker();
+startMaterializedViewWorker();
 
 const PORT = process.env.PORT || 5000;
 
@@ -39,6 +41,8 @@ const shutdown = async (signal) => {
          await stopBulkEmailWorker();
       }
 
+      await stopDeliveryStatusWorker();
+      await stopMaterializedViewWorker();
       await closePostgres();
       console.log("API server shutdown complete");
       process.exit(0);

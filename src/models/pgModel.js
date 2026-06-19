@@ -89,7 +89,7 @@ const evaluateExpression = (expression, row) => {
   if (expression.$ifNull) {
     const [valueExpression, fallback] = expression.$ifNull;
     const value = evaluateExpression(valueExpression, row);
-    return value === null || value === undefined || value === "" ? fallback : value;
+    return value === null || value === undefined || value === "" ? evaluateExpression(fallback, row) : value;
   }
 
   if (expression.$objectToArray) {
@@ -174,6 +174,18 @@ const evaluateExpression = (expression, row) => {
 };
 
 const groupKey = (value) => JSON.stringify(value);
+
+const getDateFormatSql = (column, format) => {
+  if (format === "%Y-%m-%d %H:00") {
+    return `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:00')`;
+  }
+
+  if (format === "%Y-%m-%d") {
+    return `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`;
+  }
+
+  return null;
+};
 
 const sortRows = (rows, sortSpec) => {
   const entries = Object.entries(sortSpec || {});
@@ -700,6 +712,187 @@ export class PgModel {
     return result.rows.map((row) => row.value).filter((value) => value !== null && value !== undefined);
   }
 
+  labelExpressionSql(expression) {
+    if (typeof expression === "string") {
+      if (!expression.startsWith("$")) {
+        return {
+          sql: "$literal$" + expression + "$literal$"
+        };
+      }
+
+      return {
+        sql: this.column(expression.slice(1))
+      };
+    }
+
+    if (!isPlainObject(expression)) {
+      return null;
+    }
+
+    if (expression.$ifNull) {
+      const expressions = [];
+      let current = expression;
+
+      while (isPlainObject(current) && current.$ifNull) {
+        const [valueExpression, fallbackExpression] = current.$ifNull;
+        const valueSql = this.labelExpressionSql(valueExpression);
+
+        if (!valueSql) {
+          return null;
+        }
+
+        expressions.push(`NULLIF(${valueSql.sql}::text, '')`);
+        current = fallbackExpression;
+      }
+
+      const fallbackSql = this.labelExpressionSql(current);
+
+      if (!fallbackSql) {
+        return null;
+      }
+
+      expressions.push(`NULLIF(${fallbackSql.sql}::text, '')`);
+
+      return {
+        sql: `COALESCE(${expressions.join(", ")}, 'Unknown')`
+      };
+    }
+
+    if (expression.$dateToString) {
+      const dateExpression = expression.$dateToString.date;
+
+      if (typeof dateExpression !== "string" || !dateExpression.startsWith("$")) {
+        return null;
+      }
+
+      const dateSql = getDateFormatSql(
+        this.column(dateExpression.slice(1)),
+        expression.$dateToString.format
+      );
+
+      return dateSql ? { sql: dateSql } : null;
+    }
+
+    if (expression.$concat && Array.isArray(expression.$concat)) {
+      const parts = expression.$concat.map((part) => {
+        if (typeof part === "string" && !part.startsWith("$")) {
+          return `'${part.replace(/'/g, "''")}'`;
+        }
+
+        if (isPlainObject(part) && part.$toString) {
+          const value = part.$toString;
+
+          if (isPlainObject(value) && value.$isoWeekYear === "$createdAt") {
+            return "to_char(created_at AT TIME ZONE 'UTC', 'IYYY')";
+          }
+
+          if (isPlainObject(value) && value.$isoWeek === "$createdAt") {
+            return "ltrim(to_char(created_at AT TIME ZONE 'UTC', 'IW'), '0')";
+          }
+        }
+
+        const nested = this.labelExpressionSql(part);
+        return nested?.sql || null;
+      });
+
+      if (parts.some((part) => !part)) {
+        return null;
+      }
+
+      return {
+        sql: parts.join(" || ")
+      };
+    }
+
+    return null;
+  }
+
+  async aggregateMetricsBy(match = {}, labelExpression) {
+    this.assertConfigured();
+
+    if (this.table !== "tracking_events") {
+      return null;
+    }
+
+    const labelSql = this.labelExpressionSql(labelExpression);
+
+    if (!labelSql) {
+      return null;
+    }
+
+    const allowedFields = new Set([
+      "createdAt",
+      "campaignName",
+      "campaignType",
+      "templateId",
+      "templateSlug",
+      "templateName",
+      "senderEmail",
+      "eventType",
+      "isBot"
+    ]);
+
+    const getReferencedFields = (expr) => {
+      const fields = [];
+      const recurse = (val) => {
+        if (typeof val === "string") {
+          if (val.startsWith("$")) {
+            fields.push(val.slice(1));
+          }
+        } else if (Array.isArray(val)) {
+          val.forEach(recurse);
+        } else if (val && typeof val === "object") {
+          Object.values(val).forEach(recurse);
+        }
+      };
+      recurse(expr);
+      return fields;
+    };
+
+    const referencedFields = getReferencedFields(labelExpression);
+    const canUseMaterializedView =
+      Object.keys(match).every((key) => allowedFields.has(key)) &&
+      referencedFields.every((field) => allowedFields.has(field));
+
+    const values = [];
+    const where = this.buildWhere(match, values);
+
+    const queryTable = canUseMaterializedView ? "tracking_events_hourly_summary" : this.table;
+    const totalExpr = canUseMaterializedView ? "SUM(total_events)::int" : "COUNT(*)::int";
+    const uniqueExpr = canUseMaterializedView ? "SUM(total_events)::int" : "COUNT(DISTINCT tracking_id)::int";
+
+    const result = await postgres.query(
+      `SELECT ${labelSql.sql} AS label,
+              event_type AS "eventType",
+              ${totalExpr} AS total,
+              ${uniqueExpr} AS unique
+       FROM ${queryTable}
+       ${where.sql ? `WHERE ${where.sql}` : ""}
+       GROUP BY label, event_type
+       ORDER BY label ASC`,
+      values
+    );
+
+    const rowsByLabel = new Map();
+
+    for (const row of result.rows) {
+      const label = row.label || "Unknown";
+      const grouped = rowsByLabel.get(label) || {
+        _id: label,
+        metrics: []
+      };
+
+      grouped.metrics.push({
+        eventType: row.eventType,
+        total: row.total,
+        unique: row.unique
+      });
+      rowsByLabel.set(label, grouped);
+    }
+
+    return [...rowsByLabel.values()];
+  }
+
   async aggregate(pipeline = []) {
     this.assertConfigured();
     const matchStage = pipeline.find((stage) => stage.$match)?.$match || {};
@@ -727,7 +920,71 @@ export class PgModel {
       }));
     }
 
-    let rows = await this.find(matchStage);
+    // Dynamically scan the pipeline to select only referenced database columns, avoiding non-existent alias columns
+    const fieldsToSelect = new Set();
+
+    // 1. Scan match stages to extract filters on database columns
+    pipeline.forEach(stage => {
+      if (stage.$match) {
+        const scanMatch = (obj) => {
+          if (obj && typeof obj === "object") {
+            for (const [key, value] of Object.entries(obj)) {
+              if (key && !key.startsWith("$")) {
+                fieldsToSelect.add(key.split(".")[0]);
+              }
+              scanMatch(value);
+            }
+          }
+        };
+        scanMatch(stage.$match);
+      }
+    });
+
+    // 2. Scan the first group/project/unwind stage to find the source database columns required as inputs
+    const firstTransformStage = pipeline.find(stage => stage.$group || stage.$project || stage.$unwind);
+    if (firstTransformStage) {
+      const scanTransform = (obj) => {
+        if (typeof obj === "string" && obj.startsWith("$")) {
+          const baseField = obj.slice(1).split(".")[0];
+          if (baseField && !baseField.startsWith("$")) {
+            fieldsToSelect.add(baseField);
+          }
+        } else if (Array.isArray(obj)) {
+          obj.forEach(scanTransform);
+        } else if (obj && typeof obj === "object") {
+          Object.values(obj).forEach(scanTransform);
+        }
+      };
+      
+      if (firstTransformStage.$group) {
+        scanTransform(firstTransformStage.$group);
+      } else if (firstTransformStage.$project) {
+        scanTransform(firstTransformStage.$project);
+      } else if (firstTransformStage.$unwind) {
+        scanTransform(firstTransformStage.$unwind);
+      }
+    }
+
+    // Add standard default tracking fields
+    fieldsToSelect.add("id");
+    fieldsToSelect.add("trackingId");
+    fieldsToSelect.add("eventType");
+    fieldsToSelect.add("createdAt");
+
+    // Explicitly exclude massive HTML/delivery payload columns
+    fieldsToSelect.delete("renderedFormHtml");
+    fieldsToSelect.delete("rendered_form_html");
+    fieldsToSelect.delete("deliveryStatusRaw");
+    fieldsToSelect.delete("delivery_status_raw");
+
+    const selectStr = Array.from(fieldsToSelect).filter(Boolean).join(" ");
+
+    let query = this.find(matchStage);
+    if (selectStr) {
+      query = query.select(selectStr);
+    }
+
+    let rows = await query;
     const remainingStages = pipeline.slice(pipeline.findIndex((stage) => stage.$match) + 1);
 
     for (const stage of remainingStages) {

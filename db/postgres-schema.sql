@@ -127,7 +127,6 @@ CREATE TABLE IF NOT EXISTS tracking_events (
   delivery_meta JSONB NOT NULL DEFAULT '{}',
   render JSONB NOT NULL DEFAULT '{}',
   metadata JSONB NOT NULL DEFAULT '{}',
-  form_data JSONB NOT NULL DEFAULT '{}',
   form_submission JSONB NOT NULL DEFAULT '{}',
   sent_at TIMESTAMPTZ,
   delivered_at TIMESTAMPTZ,
@@ -140,6 +139,35 @@ CREATE TABLE IF NOT EXISTS tracking_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS delivery_status_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tracking_event_id UUID,
+  tracking_id TEXT,
+  email TEXT,
+  subject TEXT,
+  campaign_name TEXT,
+  campaign_type TEXT,
+  template_id TEXT,
+  template_slug TEXT,
+  template_name TEXT,
+  message_id TEXT,
+  sender_email TEXT,
+  sender_provider TEXT,
+  delivery_provider TEXT,
+  provider_event_id TEXT,
+  provider_status TEXT,
+  event_type TEXT NOT NULL,
+  bounce_type TEXT,
+  bounce_reason TEXT,
+  delivery_meta JSONB NOT NULL DEFAULT '{}',
+  delivery_status_raw JSONB NOT NULL DEFAULT '{}',
+  occurred_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+
 
 CREATE TABLE IF NOT EXISTS template_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -180,6 +208,9 @@ CREATE INDEX IF NOT EXISTS contacts_status_created_at_idx ON contacts(status, cr
 CREATE INDEX IF NOT EXISTS tracking_events_email_event_type_idx ON tracking_events(email, event_type);
 CREATE INDEX IF NOT EXISTS tracking_events_sender_event_created_idx ON tracking_events(sender_email, event_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS tracking_events_template_event_created_idx ON tracking_events(template_id, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS delivery_status_events_tracking_event_created_idx ON delivery_status_events(tracking_id, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS delivery_status_events_email_event_created_idx ON delivery_status_events(email, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS delivery_status_events_provider_event_idx ON delivery_status_events(provider_event_id);
 CREATE INDEX IF NOT EXISTS bulk_email_campaigns_status_created_idx ON bulk_email_campaigns(status, created_at);
 CREATE INDEX IF NOT EXISTS bulk_email_recipients_campaign_status_created_idx ON bulk_email_recipients(campaign_id, status, created_at);
 CREATE INDEX IF NOT EXISTS bulk_email_recipients_email_status_idx ON bulk_email_recipients(email, status);
@@ -187,3 +218,62 @@ CREATE INDEX IF NOT EXISTS amp_templates_created_at_idx ON amp_templates(created
 CREATE INDEX IF NOT EXISTS amp_templates_status_created_at_idx ON amp_templates(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS template_versions_template_version_idx ON template_versions(template_id, version DESC);
 CREATE INDEX IF NOT EXISTS saved_blocks_type_category_created_idx ON saved_blocks(type, category, created_at DESC);
+
+-- Analytics Performance Indexes
+CREATE INDEX IF NOT EXISTS tracking_events_campaign_name_event_type_idx ON tracking_events(campaign_name, event_type);
+CREATE INDEX IF NOT EXISTS tracking_events_created_at_idx ON tracking_events(created_at);
+CREATE INDEX IF NOT EXISTS tracking_events_campaign_type_idx ON tracking_events(campaign_type);
+CREATE INDEX IF NOT EXISTS tracking_events_is_bot_idx ON tracking_events(is_bot);
+CREATE INDEX IF NOT EXISTS tracking_events_render_device_idx ON tracking_events ((render->>'device'));
+CREATE INDEX IF NOT EXISTS tracking_events_render_browser_idx ON tracking_events ((render->>'browser'));
+CREATE INDEX IF NOT EXISTS tracking_events_render_os_idx ON tracking_events ((render->>'os'));
+CREATE INDEX IF NOT EXISTS tracking_events_render_country_idx ON tracking_events ((render->>'country'));
+CREATE INDEX IF NOT EXISTS tracking_events_render_city_idx ON tracking_events ((render->>'city'));
+
+-- Tracking ID Indexes for fast distinct counts and event joins
+CREATE INDEX IF NOT EXISTS tracking_events_tracking_id_idx ON tracking_events(tracking_id);
+CREATE INDEX IF NOT EXISTS delivery_status_events_tracking_id_idx ON delivery_status_events(tracking_id);
+CREATE INDEX IF NOT EXISTS delivery_status_events_created_at_idx ON delivery_status_events(created_at);
+
+-- Materialized View for hourly summarized tracking events
+DROP MATERIALIZED VIEW IF EXISTS tracking_events_hourly_summary CASCADE;
+
+CREATE MATERIALIZED VIEW tracking_events_hourly_summary AS
+SELECT
+  DATE_TRUNC('hour', created_at) AS created_at,
+  campaign_name,
+  campaign_type,
+  template_id,
+  template_slug,
+  template_name,
+  sender_email,
+  event_type,
+  is_bot,
+  COUNT(*)::int AS total_events
+FROM tracking_events
+GROUP BY 
+  DATE_TRUNC('hour', created_at), 
+  campaign_name, 
+  campaign_type, 
+  template_id, 
+  template_slug, 
+  template_name, 
+  sender_email, 
+  event_type, 
+  is_bot;
+
+CREATE UNIQUE INDEX IF NOT EXISTS tracking_events_hourly_summary_unique_idx 
+ON tracking_events_hourly_summary(
+  created_at, 
+  campaign_name, 
+  campaign_type, 
+  template_id, 
+  template_slug, 
+  template_name, 
+  sender_email, 
+  event_type, 
+  is_bot
+);
+
+CREATE INDEX IF NOT EXISTS tracking_events_hourly_summary_campaign_idx 
+ON tracking_events_hourly_summary(campaign_name);

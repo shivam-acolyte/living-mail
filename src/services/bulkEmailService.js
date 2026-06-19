@@ -3,6 +3,10 @@ import BulkEmailRecipient from "../models/BulkEmailRecipient.js";
 import Tracking from "../models/Tracking.js";
 import sendTrackingEmail from "./emailService.js";
 import { getSuppressedEmailSet, SuppressedEmailError } from "./suppressionService.js";
+import {
+  isPostgresBackedOff,
+  notePostgresConnectionFailure
+} from "../config/postgres.js";
 
 const numberEnv = (name, fallback) => {
   const value = Number(process.env[name]);
@@ -11,14 +15,14 @@ const numberEnv = (name, fallback) => {
 
 const MAX_CAMPAIGN_EMAILS = numberEnv("MAX_CAMPAIGN_EMAILS", 100000);
 const DAILY_SENDER_LIMIT = numberEnv("DAILY_SENDER_LIMIT", 25000);
-const BULK_EMAIL_BATCH_SIZE = numberEnv("BULK_EMAIL_BATCH_SIZE", 100);
+const BULK_EMAIL_BATCH_SIZE = numberEnv("BULK_EMAIL_BATCH_SIZE", 25);
 const BULK_EMAIL_BATCH_DELAY_MS = numberEnv("BULK_EMAIL_BATCH_DELAY_MS", 2000);
 const BULK_EMAIL_WORKER_INTERVAL_MS = numberEnv("BULK_EMAIL_WORKER_INTERVAL_MS", 10000);
 const STALE_LOCK_MS = numberEnv("BULK_EMAIL_STALE_LOCK_MS", 5 * 60 * 1000);
-const BULK_EMAIL_SEND_CONCURRENCY = numberEnv("BULK_EMAIL_SEND_CONCURRENCY", 10);
+const BULK_EMAIL_SEND_CONCURRENCY = numberEnv("BULK_EMAIL_SEND_CONCURRENCY", 3);
 const BULK_EMAIL_MAX_RETRY_ATTEMPTS = numberEnv("BULK_EMAIL_MAX_RETRY_ATTEMPTS", 3);
 const BULK_EMAIL_RETRY_BASE_DELAY_MS = numberEnv("BULK_EMAIL_RETRY_BASE_DELAY_MS", 60 * 1000);
-const BULK_EMAIL_POLL_LIMIT = numberEnv("BULK_EMAIL_POLL_LIMIT", 2);
+const BULK_EMAIL_POLL_LIMIT = numberEnv("BULK_EMAIL_POLL_LIMIT", 1);
 const DEFAULT_SCHEDULE_TIMEZONE_OFFSET = process.env.SCHEDULE_TIMEZONE_OFFSET || "+05:30";
 
 let workerStarted = false;
@@ -761,6 +765,10 @@ const processNextCampaigns = async () => {
     return;
   }
 
+  if (isPostgresBackedOff()) {
+    return;
+  }
+
   workerRunning = true;
 
   try {
@@ -794,6 +802,12 @@ const processNextCampaigns = async () => {
       await processCampaign(campaign);
     }
   } catch (error) {
+    if (notePostgresConnectionFailure(error)) {
+      console.error("BULK EMAIL WORKER POSTGRES BACKOFF:", error.message);
+      await sleep(Number(process.env.POSTGRES_TIMEOUT_BACKOFF_MS || 30000));
+      return;
+    }
+
     console.error("BULK EMAIL WORKER ERROR:", error);
   } finally {
     workerRunning = false;

@@ -186,7 +186,7 @@ const validateSourceBlocks = (issues, sourceJson = {}) => {
       });
     }
 
-    if (["form", "poll", "survey", "rating", "nps", "appointment", "booking", "quiz", "productFeedback", "rsvp"].includes(block.type)) {
+    if (["form", "poll", "survey", "rating", "nps", "appointment", "booking", "quiz", "productFeedback", "rsvp", "spinWheel"].includes(block.type)) {
       const fields = props.fields || props.questions || [];
 
       if (block.type === "form" && !fields.length) {

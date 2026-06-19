@@ -1,7 +1,33 @@
 import Tracking from "../models/Tracking.js";
+import DeliveryStatusEvent from "../models/DeliveryStatusEvent.js";
+import {
+  isPostgresBackedOff,
+  notePostgresConnectionFailure
+} from "../config/postgres.js";
 
 const DEFAULT_STATUS_URL =
   "https://insights.startupflora.co/api/v1/webhooks/maildelivery-status";
+
+const numberEnv = (name, fallback) => {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+const DELIVERY_STATUS_WORKER_INTERVAL_MS = numberEnv(
+  "DELIVERY_STATUS_WORKER_INTERVAL_MS",
+  5 * 60 * 1000
+);
+
+const DELIVERY_STATUS_PAGE_LIMIT = numberEnv("DELIVERY_STATUS_PAGE_LIMIT", 100);
+
+let deliveryWorkerStarted = false;
+let deliveryWorkerRunning = false;
+let deliveryWorkerTimer = null;
+let deliveryStopRequested = false;
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
 
 const getNestedValue = (source, paths) => {
   for (const path of paths) {
@@ -23,22 +49,53 @@ const getNestedValue = (source, paths) => {
   return undefined;
 };
 
+const parseJsonObject = (value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed || !["{", "["].includes(trimmed[0])) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeRecordPayloads = (record = {}) => ({
+  ...record,
+  raw_event: parseJsonObject(record.raw_event),
+  raw_request: parseJsonObject(record.raw_request),
+  raw_request_body: parseJsonObject(record.raw_request_body),
+  delivery_meta: parseJsonObject(record.delivery_meta),
+  delivery_status_raw: parseJsonObject(record.delivery_status_raw)
+});
+
 const getFirstRawRequestBody = (record) => {
   if (Array.isArray(record?.raw_request?.body)) {
-    return record.raw_request.body[0];
+    return parseJsonObject(record.raw_request.body[0]);
   }
 
   if (Array.isArray(record?.raw_request)) {
-    return record.raw_request[0];
+    return parseJsonObject(record.raw_request[0]);
   }
 
-  return record?.raw_request;
+  return parseJsonObject(record?.raw_request);
 };
 
-const expandRecord = (record) => ({
-  ...record,
-  raw_request_body: getFirstRawRequestBody(record)
-});
+const expandRecord = (record) => {
+  const normalizedRecord = normalizeRecordPayloads(record);
+
+  return {
+    ...normalizedRecord,
+    raw_request_body: normalizedRecord.raw_request_body || getFirstRawRequestBody(normalizedRecord)
+  };
+};
 
 const toArrayPayload = (payload) => {
   if (Array.isArray(payload)) {
@@ -56,6 +113,57 @@ const toArrayPayload = (payload) => {
   );
 };
 
+const buildPagedUrl = (url, page, limit) => {
+  const pagedUrl = new URL(url);
+  pagedUrl.searchParams.set("page", page);
+  pagedUrl.searchParams.set("limit", limit);
+
+  return pagedUrl.toString();
+};
+
+const fetchDeliveryStatusPage = async ({ url, headers, page, limit }) => {
+  const response = await fetch(buildPagedUrl(url, page, limit), {
+    method: "GET",
+    headers
+  });
+
+  if (!response.ok) {
+    throw new Error(`Delivery status API failed with ${response.status}`);
+  }
+
+  return response.json();
+};
+
+const fetchAllDeliveryStatusRecords = async ({ url, headers }) => {
+  const records = [];
+  const pageLimit = Math.max(1, DELIVERY_STATUS_PAGE_LIMIT);
+  let page = 1;
+  let totalPages = 1;
+
+  do {
+    const payload = await fetchDeliveryStatusPage({
+      url,
+      headers,
+      page,
+      limit: pageLimit
+    });
+    const pageRecords = toArrayPayload(payload);
+
+    if (!Array.isArray(pageRecords)) {
+      throw new Error("Delivery status API response is not an array");
+    }
+
+    records.push(...pageRecords);
+
+    totalPages = Number(payload?.totalPages) || (
+      pageRecords.length === pageLimit ? page + 1 : page
+    );
+    page += 1;
+  } while (page <= totalPages);
+
+  return records;
+};
+
 const normalizeStatus = (value) => {
   const status = String(value || "").toLowerCase();
 
@@ -64,7 +172,11 @@ const normalizeStatus = (value) => {
   }
 
   if (
+    status.includes("transientfailure") ||
+    status.includes("transient failure") ||
+    status.includes("temporary failure") ||
     status.includes("bounce") ||
+    status.includes("failure") ||
     status.includes("failed") ||
     status.includes("dropped") ||
     status.includes("undelivered") ||
@@ -105,6 +217,10 @@ const normalizeBounceType = (record) => {
     return "soft";
   }
 
+  if (text.includes("transient") || text.includes("temporary")) {
+    return "soft";
+  }
+
   if (text.includes("reject") || text.includes("failed") || text.includes("dropped")) {
     return "hard";
   }
@@ -136,10 +252,13 @@ const normalizeEvent = (inputRecord) => {
     "response_message",
     "raw_event.response.content",
     "raw_request_body.response.content",
-    "raw_request.response.content"
+    "raw_request.response.content",
+    "response",
+    "message"
   ]);
   const statusCode = getNestedValue(record, [
     "status_code",
+    "statusCode",
     "raw_event.response.code",
     "raw_request_body.response.code",
     "raw_request.response.code"
@@ -160,7 +279,9 @@ const normalizeEvent = (inputRecord) => {
       "sender",
       "raw_event.sender",
       "raw_request_body.sender",
-      "raw_request.sender"
+      "raw_request.sender",
+      "from",
+      "mail.from"
     ]),
     subject: getNestedValue(record, [
       "subject",
@@ -180,7 +301,11 @@ const normalizeEvent = (inputRecord) => {
     "metadata.trackingId",
       "metadata.tracking_id",
       "custom.trackingId",
-      "custom_args.trackingId"
+      "custom_args.trackingId",
+      "raw_event.meta.trackingId",
+      "raw_event.meta.tracking_id",
+      "raw_request_body.meta.trackingId",
+      "raw_request_body.meta.tracking_id"
     ]),
     messageId: getNestedValue(record, [
     "messageId",
@@ -197,7 +322,8 @@ const normalizeEvent = (inputRecord) => {
     "mail.messageId",
       "mail.message_id",
       "smtp.messageId",
-      "smtp-id"
+      "smtp-id",
+      "smtp_id"
     ]),
     email: getNestedValue(record, [
     "email",
@@ -210,6 +336,8 @@ const normalizeEvent = (inputRecord) => {
     "raw_request.recipient",
     "recipientEmail",
       "recipient_email",
+      "rcpt",
+      "rcpt_to",
       "to",
       "mail.to",
       "envelope.to"
@@ -255,13 +383,16 @@ const normalizeEvent = (inputRecord) => {
       "error",
       "message",
       "diagnostic",
-      "response"
+      "response",
+      "raw_event.response",
+      "raw_request_body.response",
+      "raw_request.response"
     ]),
     meta: {
       queue: getNestedValue(record, ["queue", "raw_event.queue", "raw_request_body.queue"]),
       statusCode,
       responseMessage,
-      ip: getNestedValue(record, ["ip"]),
+      ip: getNestedValue(record, ["ip", "remote_ip", "client_ip"]),
       size: getNestedValue(record, ["size", "raw_event.size", "raw_request_body.size"]),
       attempts: getNestedValue(record, ["num_attempts", "raw_event.num_attempts", "raw_request_body.num_attempts"]),
       sessionId: getNestedValue(record, ["raw_event.session_id", "raw_request_body.session_id"]),
@@ -351,6 +482,84 @@ const buildTrackingEvent = (event, sentEvent) => {
   return base;
 };
 
+const buildDeliveryStatusEvent = (event, sentEvent, trackingEvent = null) => {
+  const occurredAt = getEventDate(event.occurredAt);
+
+  return {
+    trackingEventId: trackingEvent?._id,
+    trackingId: sentEvent?.trackingId || event.trackingId,
+    email: sentEvent?.email || event.email,
+    subject: sentEvent?.subject || event.subject,
+    campaignName: sentEvent?.campaignName,
+    campaignType: sentEvent?.campaignType,
+    templateId: sentEvent?.templateId,
+    templateSlug: sentEvent?.templateSlug,
+    templateName: sentEvent?.templateName,
+    messageId: sentEvent?.messageId || event.messageId,
+    senderEmail: sentEvent?.senderEmail || event.senderEmail,
+    senderProvider: sentEvent?.senderProvider,
+    deliveryProvider: sentEvent?.deliveryProvider || "maildelivery-status",
+    providerEventId: event.providerEventId,
+    providerStatus: event.providerStatus,
+    eventType: event.eventType,
+    bounceType: event.bounceType,
+    bounceReason: event.bounceReason,
+    deliveryMeta: event.meta,
+    deliveryStatusRaw: event.raw,
+    occurredAt,
+    createdAt: occurredAt
+  };
+};
+
+const buildDeliveryStatusMatch = (event, sentEvent) => {
+  const query = {
+    eventType: event.eventType,
+    $or: []
+  };
+
+  if (event.providerEventId) {
+    query.$or.push({ providerEventId: event.providerEventId });
+  }
+
+  if (sentEvent?.trackingId || event.trackingId) {
+    query.$or.push({
+      trackingId: sentEvent?.trackingId || event.trackingId,
+      eventType: event.eventType
+    });
+  }
+
+  if (sentEvent?.messageId || event.messageId) {
+    query.$or.push({
+      messageId: sentEvent?.messageId || event.messageId,
+      eventType: event.eventType
+    });
+  }
+
+  if (event.email && event.providerStatus) {
+    query.$or.push({
+      email: event.email,
+      providerStatus: event.providerStatus,
+      eventType: event.eventType
+    });
+  }
+
+  return query.$or.length ? query : null;
+};
+
+const createDeliveryStatusEventIfNew = async (event, sentEvent, trackingEvent = null) => {
+  const existingMatch = buildDeliveryStatusMatch(event, sentEvent);
+
+  if (existingMatch) {
+    const existing = await DeliveryStatusEvent.findOne(existingMatch).lean();
+
+    if (existing) {
+      return null;
+    }
+  }
+
+  return DeliveryStatusEvent.create(buildDeliveryStatusEvent(event, sentEvent, trackingEvent));
+};
+
 const hasExistingEvent = async (event, sentEvent) => {
   const query = {
     eventType: event.eventType,
@@ -400,25 +609,12 @@ export const syncDeliveryStatuses = async () => {
     headers["x-api-key"] = process.env.MAIL_STATUS_API_KEY;
   }
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers
-  });
-
-  if (!response.ok) {
-    throw new Error(`Delivery status API failed with ${response.status}`);
-  }
-
-  const payload = await response.json();
-  const records = toArrayPayload(payload);
-
-  if (!Array.isArray(records)) {
-    throw new Error("Delivery status API response is not an array");
-  }
+  const records = await fetchAllDeliveryStatusRecords({ url, headers });
 
   const result = {
     fetched: records.length,
     processed: 0,
+    deliveryInserted: 0,
     inserted: 0,
     skipped: 0,
     unmatched: 0,
@@ -445,16 +641,30 @@ export const syncDeliveryStatuses = async () => {
         : null;
 
       if (!sentEvent && !event.trackingId && !event.messageId && !event.email) {
+        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+        result.deliveryInserted += deliveryEvent ? 1 : 0;
+        result.skipped += deliveryEvent ? 0 : 1;
         result.unmatched += 1;
         continue;
       }
 
-      if (await hasExistingEvent(event, sentEvent)) {
+      if (event.eventType === "delivered") {
+        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+        result.deliveryInserted += deliveryEvent ? 1 : 0;
         result.skipped += 1;
         continue;
       }
 
-      await Tracking.create(buildTrackingEvent(event, sentEvent));
+      if (await hasExistingEvent(event, sentEvent)) {
+        const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
+        result.deliveryInserted += deliveryEvent ? 1 : 0;
+        result.skipped += 1;
+        continue;
+      }
+
+      const trackingEvent = await Tracking.create(buildTrackingEvent(event, sentEvent));
+      const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent, trackingEvent);
+      result.deliveryInserted += deliveryEvent ? 1 : 0;
       result.inserted += 1;
     } catch (error) {
       result.errors.push(error.message);
@@ -462,4 +672,72 @@ export const syncDeliveryStatuses = async () => {
   }
 
   return result;
+};
+
+const runDeliveryStatusSync = async () => {
+  if (deliveryWorkerRunning) {
+    return;
+  }
+
+  if (isPostgresBackedOff()) {
+    return;
+  }
+
+  deliveryWorkerRunning = true;
+
+  try {
+    const result = await syncDeliveryStatuses();
+    console.log("DELIVERY STATUS AUTO SYNC:", result);
+  } catch (error) {
+    if (notePostgresConnectionFailure(error)) {
+      console.error("DELIVERY STATUS AUTO SYNC POSTGRES BACKOFF:", error.message);
+      await sleep(Number(process.env.POSTGRES_TIMEOUT_BACKOFF_MS || 30000));
+      return;
+    }
+
+    console.error("DELIVERY STATUS AUTO SYNC ERROR:", error.message);
+  } finally {
+    deliveryWorkerRunning = false;
+  }
+};
+
+const deliveryStatusWorkerLoop = async () => {
+  if (!deliveryWorkerStarted || deliveryStopRequested) {
+    return;
+  }
+
+  await runDeliveryStatusSync();
+
+  if (deliveryWorkerStarted && !deliveryStopRequested) {
+    deliveryWorkerTimer = setTimeout(
+      deliveryStatusWorkerLoop,
+      DELIVERY_STATUS_WORKER_INTERVAL_MS
+    );
+  }
+};
+
+export const startDeliveryStatusWorker = () => {
+  if (deliveryWorkerStarted || process.env.DISABLE_DELIVERY_STATUS_WORKER === "true") {
+    return;
+  }
+
+  deliveryWorkerStarted = true;
+  deliveryStopRequested = false;
+
+  console.log(`Delivery status worker running every ${DELIVERY_STATUS_WORKER_INTERVAL_MS}ms`);
+  deliveryStatusWorkerLoop();
+};
+
+export const stopDeliveryStatusWorker = async () => {
+  deliveryStopRequested = true;
+  deliveryWorkerStarted = false;
+
+  if (deliveryWorkerTimer) {
+    clearTimeout(deliveryWorkerTimer);
+    deliveryWorkerTimer = null;
+  }
+
+  while (deliveryWorkerRunning) {
+    await sleep(250);
+  }
 };

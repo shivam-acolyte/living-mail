@@ -1,4 +1,5 @@
 import { defaultTemplateStyles } from "./styles.js";
+import { compileTemplateSource } from "./templateCompiler.js";
 
 const placeholderPattern = /\{\{\s*([a-zA-Z0-9_.-]+)(?:\s*\|\s*default\s*:\s*(?:"([^"]*)"|'([^']*)'|([^}]+)))?\s*\}\}/g;
 
@@ -200,8 +201,13 @@ const trackLinks = (html, trackingId, context) => {
         return match;
       }
 
+      const decodedHref = href
+        .replace(/&amp;/gi, "&")
+        .replace(/&#x26;/gi, "&")
+        .replace(/&#38;/gi, "&");
+
       const query = new URLSearchParams({
-        url: href,
+        url: decodedHref,
         subject: context.subject || "",
         campaignName: context.campaignName || "",
         campaignType: context.campaignType || ""
@@ -254,13 +260,9 @@ const getTemplateWidth = (template = {}) => {
 };
 
 const getTemplateImageWidth = (template = {}) => {
-  const theme = template.sourceJson?.theme || {};
   const shellWidth = getTemplateWidth(template);
-  const width = Number(theme.bannerWidth || theme.imageWidth || theme.desktopImageWidth);
 
-  return Number.isFinite(width) && width > 0
-    ? Math.min(width, shellWidth)
-    : Math.min(shellWidth, DESKTOP_IMAGE_WIDTH);
+  return Math.min(shellWidth, DESKTOP_IMAGE_WIDTH);
 };
 
 const setStyleValue = (styleValue = "", property, value) => {
@@ -312,7 +314,25 @@ const constrainEmailShell = (html, template = {}) => {
 const constrainHtmlImages = (html, template = {}) => {
   const width = getTemplateImageWidth(template);
 
-  return String(html || "").replace(/<img\b([^>]*)>/gi, (match, attrs) => {
+  const htmlWithFrames = String(html || "").replace(/<table\b([^>]*class=(["'])[^"']*\bemail-image-frame\b[^"']*\2[^>]*)>/gi, (match, attrs) => {
+    let nextAttrs = setAttributeValue(attrs, "width", width);
+
+    if (/\sstyle=(["'])(.*?)\1/i.test(nextAttrs)) {
+      nextAttrs = nextAttrs.replace(/\sstyle=(["'])(.*?)\1/i, (_, quote, styleValue) => {
+        let nextStyle = setStyleValue(styleValue, "width", "100%");
+        nextStyle = setStyleValue(nextStyle, "max-width", `${width}px`);
+        nextStyle = setStyleValue(nextStyle, "margin", "0 auto");
+
+        return ` style=${quote}${nextStyle}${quote}`;
+      });
+    } else {
+      nextAttrs += ` style="width:100%;max-width:${width}px;margin:0 auto"`;
+    }
+
+    return `<table${nextAttrs}>`;
+  });
+
+  return htmlWithFrames.replace(/<img\b([^>]*)>/gi, (match, attrs) => {
     if (/width=(["'])1\1/i.test(attrs) || /display\s*:\s*none/i.test(attrs)) {
       return match;
     }
@@ -728,11 +748,17 @@ export const renderTrackedFormTemplate = ({
     campaignType,
     baseUrl,
     formActionUrl,
-    directFormHtmlUrl
+    directFormHtmlUrl,
+    templateId: template?._id?.toString(),
+    templateSlug: template?.slug
   };
 
-  const rawFormHtml = template?.formHtml
-    ? renderTemplateExpressions(template.formHtml, values)
+  const compiledFormHtml = template?.sourceJson
+    ? compileTemplateSource(template.sourceJson).formHtml
+    : "";
+  const templateFormHtml = compiledFormHtml || template?.formHtml;
+  const rawFormHtml = templateFormHtml
+    ? renderTemplateExpressions(templateFormHtml, values)
     : defaultFormHtml({
         trackingId,
         subject,
