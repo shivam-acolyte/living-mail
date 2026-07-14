@@ -610,8 +610,8 @@ const defaultFormHtml = ({
   <script async src="https://cdn.ampproject.org/v0.js"></script>
   <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
   <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
-  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
-  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</style></noscript>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
   <style amp-custom>
     body{margin:0;background:#f8fafc;font-family:Arial,sans-serif;padding:24px}
     .container{max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:24px}
@@ -619,6 +619,14 @@ const defaultFormHtml = ({
     label{display:block;margin:14px 0 6px;color:#374151;font-weight:700;font-size:14px}
     input,textarea,select{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:12px;font-size:15px}
     button{width:100%;margin-top:20px;border:0;border-radius:6px;background:#178218;color:#fff;padding:13px;font-size:16px;font-weight:700}
+    @media (max-width: 600px) {
+      body { padding: 12px; }
+      .container { padding: 16px; border-radius: 6px; }
+      h1 { font-size: 20px; margin-bottom: 12px; }
+      label { margin: 10px 0 4px; font-size: 13px; }
+      input,textarea,select { padding: 10px; font-size: 14px; }
+      button { padding: 11px; font-size: 15px; margin-top: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -649,7 +657,7 @@ const defaultFormHtml = ({
 };
 
 const isAmpFormPage = (html) => {
-  return /<html[^>]*(\samp|⚡)/i.test(html) || /<style\s+amp-custom/i.test(html);
+  return /<html[^>]*(\samp|⚡|amp4email)/i.test(html) || /<style\b[^>]*amp-custom/i.test(html) || /action-xhr=/i.test(html);
 };
 
 const ensureFormAction = (html, formActionUrl, useAmpAction = false) => {

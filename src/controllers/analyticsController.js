@@ -1,5 +1,6 @@
 import Tracking from "../models/Tracking.js";
 import DeliveryStatusEvent from "../models/DeliveryStatusEvent.js";
+import Contact from "../models/Contact.js";
 import { postgres } from "../config/postgres.js";
 
 // simple in-memory cache for deep analytics to speed up repeated requests
@@ -178,18 +179,49 @@ const getDeliveryStatusMatch = (match = {}) => {
   return deliveryMatch;
 };
 
-const getDeliveredMetric = async (match) => {
-  const deliveryMatch = getDeliveryStatusMatch(match);
+const getSentTrackingIds = async (match) => {
+  const sentMatch = { ...match };
+  delete sentMatch.eventType;
+  return Tracking.distinct("trackingId", {
+    ...sentMatch,
+    eventType: "sent"
+  });
+};
 
-  if (!deliveryMatch) {
-    return null;
+const getGroupedDeliveredCounts = async (sentTrackingIds, dbField) => {
+  if (!sentTrackingIds.length) {
+    return new Map();
   }
 
-  const trackingIds = await DeliveryStatusEvent.distinct("trackingId", deliveryMatch);
-  const emails = trackingIds.length
-    ? []
-    : await DeliveryStatusEvent.distinct("email", deliveryMatch);
-  const unique = trackingIds.length || emails.length;
+  const query = `
+    SELECT 
+      COALESCE(${dbField}, 'Unknown') AS label,
+      COUNT(DISTINCT tracking_id)::int AS total
+    FROM delivery_status_events
+    WHERE event_type = 'delivered' AND tracking_id = ANY($1)
+    GROUP BY label
+  `;
+
+  const result = await postgres.query(query, [sentTrackingIds]);
+  return new Map(result.rows.map((row) => [row.label, row.total]));
+};
+
+const getDeliveredMetric = async (match, sentTrackingIds = null) => {
+  const ids = sentTrackingIds || await getSentTrackingIds(match);
+
+  if (!ids.length) {
+    return {
+      total: 0,
+      unique: 0
+    };
+  }
+
+  const deliveredTrackingIds = await DeliveryStatusEvent.distinct("trackingId", {
+    eventType: "delivered",
+    trackingId: { $in: ids }
+  });
+
+  const unique = deliveredTrackingIds.length;
 
   return {
     total: unique,
@@ -268,11 +300,21 @@ const buildMetricProjection = (labelExpression) => ([
   { $sort: { _id: 1 } }
 ]);
 
-const normalizeGroupedRows = (rows, labelKey) => {
+const normalizeGroupedRows = (rows, labelKey, deliveredCountsMap = null) => {
   return rows.map((row) => {
     const metrics = Object.fromEntries(
       row.metrics.map((metric) => [metric.eventType, metric])
     );
+
+    if (deliveredCountsMap) {
+      const label = row._id || "Unknown";
+      const deliveredCount = deliveredCountsMap.get(label) || 0;
+      metrics.delivered = {
+        eventType: "delivered",
+        total: deliveredCount,
+        unique: deliveredCount
+      };
+    }
 
     return {
       [labelKey]: row._id || "Unknown",
@@ -281,16 +323,16 @@ const normalizeGroupedRows = (rows, labelKey) => {
   });
 };
 
-const getGroupedAnalytics = async (match, labelExpression, labelKey) => {
+const getGroupedAnalytics = async (match, labelExpression, labelKey, deliveredCountsMap = null) => {
   const rows = await Tracking.aggregateMetricsBy(match, labelExpression) || await Tracking.aggregate([
     { $match: match },
     ...buildMetricProjection(labelExpression)
   ]);
 
-  return normalizeGroupedRows(rows, labelKey);
+  return normalizeGroupedRows(rows, labelKey, deliveredCountsMap);
 };
 
-const getOverview = async (match) => {
+const getOverview = async (match, sentTrackingIds = null) => {
   const rows = await Tracking.aggregate([
     { $match: match },
     {
@@ -310,7 +352,7 @@ const getOverview = async (match) => {
   ]);
 
   const metrics = Object.fromEntries(rows.map((row) => [row._id, row]));
-  const deliveredMetric = await getDeliveredMetric(match);
+  const deliveredMetric = await getDeliveredMetric(match, sentTrackingIds);
 
   if (deliveredMetric?.total) {
     metrics.delivered = deliveredMetric;
@@ -367,12 +409,12 @@ const getTimeline = async (match, interval) => {
     ? { $dateToString: { format: "%Y-%m-%d %H:00", date: "$createdAt" } }
     : interval === "weekly"
       ? {
-          $concat: [
-            { $toString: { $isoWeekYear: "$createdAt" } },
-            "-W",
-            { $toString: { $isoWeek: "$createdAt" } }
-          ]
-        }
+        $concat: [
+          { $toString: { $isoWeekYear: "$createdAt" } },
+          "-W",
+          { $toString: { $isoWeek: "$createdAt" } }
+        ]
+      }
       : { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
 
   return getGroupedAnalytics(match, labelExpression, "period");
@@ -428,15 +470,13 @@ const getLinkAnalytics = async (match) => {
 };
 
 const getDeliveryEventsByTrackingId = async (match, trackingIds = []) => {
-  const deliveryMatch = getDeliveryStatusMatch(match);
   const knownTrackingIds = trackingIds.filter(Boolean);
 
-  if (!deliveryMatch || !knownTrackingIds.length) {
+  if (!knownTrackingIds.length) {
     return new Map();
   }
 
   const queryMatch = {
-    ...deliveryMatch,
     trackingId: { $in: knownTrackingIds }
   };
   const { sql: whereSql, values } = DeliveryStatusEvent.buildWhere(queryMatch);
@@ -864,12 +904,26 @@ const getDeepAnalytics = async (match) => {
     ]
   };
 
+  const sentTrackingIds = await getSentTrackingIds(match);
+
+  const [
+    campaignDelivered,
+    templateDelivered,
+    typeDelivered,
+    senderDelivered
+  ] = await Promise.all([
+    getGroupedDeliveredCounts(sentTrackingIds, "campaign_name"),
+    getGroupedDeliveredCounts(sentTrackingIds, "template_slug"),
+    getGroupedDeliveredCounts(sentTrackingIds, "campaign_type"),
+    getGroupedDeliveredCounts(sentTrackingIds, "sender_email")
+  ]);
+
   const analyticsTasks = [
-    () => getOverview(match),
-    () => getGroupedAnalytics(match, "$campaignName", "campaignName"),
-    () => getGroupedAnalytics(match, templateLabel, "template"),
-    () => getGroupedAnalytics(match, "$campaignType", "campaignType"),
-    () => getGroupedAnalytics(match, "$senderEmail", "senderEmail"),
+    () => getOverview(match, sentTrackingIds),
+    () => getGroupedAnalytics(match, "$campaignName", "campaignName", campaignDelivered),
+    () => getGroupedAnalytics(match, templateLabel, "template", templateDelivered),
+    () => getGroupedAnalytics(match, "$campaignType", "campaignType", typeDelivered),
+    () => getGroupedAnalytics(match, "$senderEmail", "senderEmail", senderDelivered),
     () => getTimeline(match, "hourly"),
     () => getTimeline(match, "daily"),
     () => getTimeline(match, "weekly"),
@@ -1307,5 +1361,393 @@ export const exportAnalyticsCsv = async (req, res) => {
       success: false,
       message: "Analytics CSV export failed"
     });
+  }
+};
+
+export const getUserHistory = async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const emailTrimmed = String(email).trim().toLowerCase();
+
+    // 1. Fetch contact details if available
+    let contact = null;
+    try {
+      contact = await Contact.findOne({ email: new RegExp("^" + emailTrimmed + "$", "i") }).lean();
+    } catch (contactErr) {
+      console.warn("User history search: contact lookup failed:", contactErr.message);
+    }
+
+    // 2. Fetch all tracking events for this email
+    const trackingEvents = await Tracking.find({ email: new RegExp("^" + emailTrimmed + "$", "i") }).sort({ createdAt: -1 }).lean();
+
+    // 3. Fetch all delivery status events for this email
+    const deliveryEvents = await DeliveryStatusEvent.find({ email: new RegExp("^" + emailTrimmed + "$", "i") }).sort({ createdAt: -1 }).lean();
+
+    return res.json({
+      success: true,
+      email: emailTrimmed,
+      contact,
+      trackingEvents,
+      deliveryEvents
+    });
+  } catch (error) {
+    console.error("GET USER HISTORY ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user history",
+      error: error.message
+    });
+  }
+};
+
+export const searchEmails = async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    if (!q) {
+      return res.json({ success: true, results: [] });
+    }
+
+    // Query matching emails from contacts (limit 15)
+    const contacts = await Contact.find({
+      $or: [
+        { email: new RegExp(q, "i") },
+        { firstName: new RegExp(q, "i") },
+        { lastName: new RegExp(q, "i") }
+      ]
+    }).limit(15).lean();
+
+    const emailsSet = new Set();
+    const results = [];
+
+    contacts.forEach(c => {
+      if (c.email && !emailsSet.has(c.email.toLowerCase())) {
+        emailsSet.add(c.email.toLowerCase());
+        results.push({
+          email: c.email,
+          firstName: c.firstName || "",
+          lastName: c.lastName || "",
+          company: c.company || "",
+          source: "contact"
+        });
+      }
+    });
+
+    // Query matching emails from tracking events if list has space (limit up to 25 total)
+    if (results.length < 25) {
+      const trackingRows = await Tracking.find({
+        email: new RegExp(q, "i")
+      }).limit(100).lean();
+
+      trackingRows.forEach(tr => {
+        if (tr.email && !emailsSet.has(tr.email.toLowerCase()) && results.length < 25) {
+          emailsSet.add(tr.email.toLowerCase());
+          results.push({
+            email: tr.email,
+            firstName: "",
+            lastName: "",
+            company: "",
+            source: "recipient"
+          });
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      results
+    });
+  } catch (error) {
+    console.error("SEARCH EMAILS ERROR:", error);
+    return res.status(500).json({ success: false, message: "Search failed" });
+  }
+};
+export const listRecipientJourneys = async (req, res) => {
+  try {
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 500);
+    const offset = (page - 1) * limit;
+
+    const fromDate = req.query.from;
+    const toDate = req.query.to;
+    const summaryFromDate = req.query.summaryFrom;
+    const summaryToDate = req.query.summaryTo;
+
+    const isValidDateString = (str) => {
+      if (!str) return false;
+      const d = new Date(str);
+      return d instanceof Date && !isNaN(d.getTime());
+    };
+
+    let cleanFrom = null;
+    let cleanTo = null;
+    if (isValidDateString(fromDate)) {
+      cleanFrom = new Date(fromDate).toISOString();
+    }
+    if (isValidDateString(toDate)) {
+      cleanTo = new Date(toDate).toISOString();
+    }
+
+    let cleanSummaryFrom = null;
+    let cleanSummaryTo = null;
+    if (isValidDateString(summaryFromDate)) {
+      cleanSummaryFrom = new Date(summaryFromDate).toISOString();
+    }
+    if (isValidDateString(summaryToDate)) {
+      cleanSummaryTo = new Date(summaryToDate).toISOString();
+    }
+
+    // Date range filter for tracking events in list query
+    let trackingDateFilter = "";
+    const trackingDateParts = [];
+    if (cleanFrom) {
+      trackingDateParts.push(`created_at >= '${cleanFrom}'`);
+    }
+    if (cleanTo) {
+      trackingDateParts.push(`created_at <= '${cleanTo}'`);
+    }
+    if (trackingDateParts.length > 0) {
+      trackingDateFilter = `WHERE ${trackingDateParts.join(" AND ")}`;
+    }
+
+    // Date range filter for tracking events in summary query
+    let summaryDateFilter = "";
+    const summaryDateParts = [];
+    if (cleanSummaryFrom) {
+      summaryDateParts.push(`created_at >= '${cleanSummaryFrom}'`);
+    }
+    if (cleanSummaryTo) {
+      summaryDateParts.push(`created_at <= '${cleanSummaryTo}'`);
+    }
+    if (summaryDateParts.length > 0) {
+      summaryDateFilter = `WHERE ${summaryDateParts.join(" AND ")}`;
+    }
+
+    // Construct WHERE clause for campaign list
+    const campaignWhereParts = ["c.campaign_name IS NOT NULL AND c.campaign_name != ''"];
+    const values = [];
+
+    if (req.query.search) {
+      values.push(`%${req.query.search.trim()}%`);
+      campaignWhereParts.push(`c.campaign_name ILIKE $1`);
+    }
+
+    if (cleanFrom || cleanTo) {
+      const campaignDateParts = [];
+      if (cleanFrom) {
+        campaignDateParts.push(`c.created_at >= '${cleanFrom}'`);
+      }
+      if (cleanTo) {
+        campaignDateParts.push(`c.created_at <= '${cleanTo}'`);
+      }
+      campaignWhereParts.push(`(${campaignDateParts.join(" AND ")} OR stats.campaign_name IS NOT NULL)`);
+    }
+
+    const campaignWhere = `WHERE ${campaignWhereParts.join(" AND ")}`;
+
+    // 1. Count query to know total campaigns (grouping by campaign_name)
+    const countQuery = `
+      SELECT COUNT(DISTINCT c.campaign_name)::int AS total 
+      FROM bulk_email_campaigns c
+      LEFT JOIN (
+        SELECT campaign_name
+        FROM tracking_events
+        ${trackingDateFilter}
+        GROUP BY campaign_name
+      ) stats ON c.campaign_name = stats.campaign_name
+      ${campaignWhere}
+    `;
+    const countResult = await postgres.query(countQuery, values);
+    const total = countResult.rows[0]?.total || 0;
+
+    // 2. Dynamic campaigns/journeys aggregation list query (grouping by campaign_name)
+    const listQuery = `
+      SELECT 
+        MIN(c.id::text) AS id,
+        c.campaign_name AS "campaignName",
+        MAX(c.status) AS status,
+        COALESCE(stats.unique_contacts, 0) AS "uniqueContacts",
+        COALESCE(stats.sent, SUM(c.sent), 0) AS sent,
+        COALESCE(stats.opens, 0) AS opens,
+        COALESCE(stats.clicks, 0) AS clicks,
+        COALESCE(stats.bounces, 0) AS bounces,
+        COALESCE(stats.unsubscribes, 0) AS unsubscribes
+      FROM bulk_email_campaigns c
+      LEFT JOIN (
+        SELECT 
+          campaign_name,
+          COUNT(DISTINCT tracking_id)::int AS unique_contacts,
+          SUM(CASE WHEN event_type = 'sent' THEN 1 ELSE 0 END)::int AS sent,
+          COUNT(DISTINCT CASE WHEN event_type = 'open' THEN tracking_id END)::int AS opens,
+          COUNT(DISTINCT CASE WHEN event_type = 'click' THEN tracking_id END)::int AS clicks,
+          SUM(CASE WHEN event_type = 'bounce' THEN 1 ELSE 0 END)::int AS bounces,
+          SUM(CASE WHEN event_type = 'unsubscribe' THEN 1 ELSE 0 END)::int AS unsubscribes
+        FROM tracking_events
+        ${trackingDateFilter}
+        GROUP BY campaign_name
+      ) stats ON c.campaign_name = stats.campaign_name
+      ${campaignWhere}
+      GROUP BY c.campaign_name, stats.unique_contacts, stats.sent, stats.opens, stats.clicks, stats.bounces, stats.unsubscribes
+      ORDER BY MAX(c.created_at) DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const listResult = await postgres.query(listQuery, values);
+    const journeys = listResult.rows;
+
+    // 3. Overall summary metrics query for the "Key metrics" block
+    const summaryQuery = `
+      SELECT 
+        SUM(CASE WHEN event_type = 'sent' THEN 1 ELSE 0 END)::int AS sent,
+        COUNT(DISTINCT CASE WHEN event_type = 'open' THEN tracking_id END)::int AS opens,
+        COUNT(DISTINCT CASE WHEN event_type = 'click' THEN tracking_id END)::int AS clicks,
+        SUM(CASE WHEN event_type = 'bounce' THEN 1 ELSE 0 END)::int AS bounces,
+        SUM(CASE WHEN event_type = 'unsubscribe' THEN 1 ELSE 0 END)::int AS unsubscribes
+      FROM tracking_events
+      ${summaryDateFilter}
+    `;
+    const summaryResult = await postgres.query(summaryQuery);
+    const summaryRow = summaryResult.rows[0] || { sent: 0, opens: 0, clicks: 0, bounces: 0, unsubscribes: 0 };
+
+    const totalSent = summaryRow.sent || 0;
+    const totalOpens = summaryRow.opens || 0;
+    const totalClicks = summaryRow.clicks || 0;
+    const totalBounces = summaryRow.bounces || 0;
+    const totalUnsubscribes = summaryRow.unsubscribes || 0;
+
+    const summary = {
+      totalSent,
+      openRate: safeRate(totalOpens, totalSent),
+      clickToOpenRate: safeRate(totalClicks, totalOpens),
+      bounceRate: safeRate(totalBounces, totalSent),
+      unsubscribeRate: safeRate(totalUnsubscribes, totalSent),
+      absolute: {
+        opens: totalOpens,
+        clicks: totalClicks,
+        bounces: totalBounces,
+        unsubscribes: totalUnsubscribes
+      }
+    };
+
+    return res.json({
+      success: true,
+      page,
+      limit,
+      total,
+      journeys,
+      summary
+    });
+  } catch (error) {
+    console.error("LIST RECIPIENT JOURNEYS ERROR:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to list recipient journeys",
+      error: error.message
+    });
+  }
+};
+
+export const abTestAnalytics = async (req, res) => {
+  try {
+    const { campaignName } = req.query;
+    if (!campaignName) {
+      return res.status(400).json({ success: false, message: "campaignName is required" });
+    }
+
+    const query = `
+      SELECT 
+        COALESCE(metadata->>'abVariant', 'Unknown') AS variant,
+        event_type AS "eventType",
+        COUNT(*)::int AS total,
+        COUNT(DISTINCT tracking_id)::int AS unique
+      FROM tracking_events
+      WHERE campaign_name = $1
+      GROUP BY variant, "eventType"
+    `;
+
+    const result = await postgres.query(query, [campaignName]);
+
+    const variantMetrics = {};
+    
+    ["A", "B"].forEach(v => {
+      variantMetrics[v] = {
+        sent: 0,
+        delivered: 0,
+        uniqueOpens: 0,
+        totalOpens: 0,
+        uniqueClicks: 0,
+        totalClicks: 0,
+        uniqueForms: 0,
+        totalForms: 0,
+        bounces: 0,
+        unsubscribes: 0
+      };
+    });
+
+    for (const row of result.rows) {
+      const v = row.variant;
+      if (!variantMetrics[v]) {
+        variantMetrics[v] = {
+          sent: 0,
+          delivered: 0,
+          uniqueOpens: 0,
+          totalOpens: 0,
+          uniqueClicks: 0,
+          totalClicks: 0,
+          uniqueForms: 0,
+          totalForms: 0,
+          bounces: 0,
+          unsubscribes: 0
+        };
+      }
+      
+      const metrics = variantMetrics[v];
+      const count = row.total;
+      const uniq = row.unique;
+      
+      if (row.eventType === "sent") {
+        metrics.sent = count;
+      } else if (row.eventType === "delivered") {
+        metrics.delivered = count;
+      } else if (row.eventType === "open") {
+        metrics.totalOpens = count;
+        metrics.uniqueOpens = uniq;
+      } else if (row.eventType === "click") {
+        metrics.totalClicks = count;
+        metrics.uniqueClicks = uniq;
+      } else if (row.eventType === "form_submit") {
+        metrics.totalForms = count;
+        metrics.uniqueForms = uniq;
+      } else if (row.eventType === "bounce") {
+        metrics.bounces = count;
+      } else if (row.eventType === "unsubscribe") {
+        metrics.unsubscribes = count;
+      }
+    }
+
+    const abResults = {};
+    for (const [v, m] of Object.entries(variantMetrics)) {
+      const deliveredOrSent = m.delivered || m.sent || Math.max(m.uniqueOpens, m.uniqueClicks, m.uniqueForms);
+      abResults[v] = {
+        ...m,
+        openRate: safeRate(m.uniqueOpens, deliveredOrSent),
+        clickRate: safeRate(m.uniqueClicks, deliveredOrSent),
+        ctor: safeRate(m.uniqueClicks, m.uniqueOpens),
+        formRate: safeRate(m.uniqueForms, deliveredOrSent),
+        bounceRate: safeRate(m.bounces, m.sent || 1)
+      };
+    }
+
+    return res.json({
+      success: true,
+      campaignName,
+      abResults
+    });
+  } catch (error) {
+    console.error("AB TEST ANALYTICS ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

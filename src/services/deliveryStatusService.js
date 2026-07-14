@@ -1,5 +1,6 @@
 import Tracking from "../models/Tracking.js";
 import DeliveryStatusEvent from "../models/DeliveryStatusEvent.js";
+import ScannedPage from "../models/ScannedPage.js";
 import {
   isPostgresBackedOff,
   notePostgresConnectionFailure
@@ -277,14 +278,17 @@ const normalizeEvent = (inputRecord) => {
   return {
     eventType,
     providerStatus: providerStatus || responseMessage,
-    senderEmail: getNestedValue(record, [
-      "sender",
-      "raw_event.sender",
-      "raw_request_body.sender",
-      "raw_request.sender",
-      "from",
-      "mail.from"
-    ]),
+    senderEmail: (() => {
+      const val = getNestedValue(record, [
+        "sender",
+        "raw_event.sender",
+        "raw_request_body.sender",
+        "raw_request.sender",
+        "from",
+        "mail.from"
+      ]);
+      return val ? String(val).trim().toLowerCase() : undefined;
+    })(),
     subject: getNestedValue(record, [
       "subject",
       "raw_event.headers.Subject",
@@ -292,15 +296,15 @@ const normalizeEvent = (inputRecord) => {
       "raw_request.headers.Subject"
     ]),
     trackingId: getNestedValue(record, [
-    "trackingId",
-    "tracking_id",
+      "trackingId",
+      "tracking_id",
       "raw_event.trackingId",
       "raw_event.tracking_id",
       "raw_request_body.trackingId",
       "raw_request_body.tracking_id",
       "raw_request.trackingId",
-    "raw_request.tracking_id",
-    "metadata.trackingId",
+      "raw_request.tracking_id",
+      "metadata.trackingId",
       "metadata.tracking_id",
       "custom.trackingId",
       "custom_args.trackingId",
@@ -310,8 +314,8 @@ const normalizeEvent = (inputRecord) => {
       "raw_request_body.meta.tracking_id"
     ]),
     messageId: getNestedValue(record, [
-    "messageId",
-    "message_id",
+      "messageId",
+      "message_id",
       "raw_event.messageId",
       "raw_event.message_id",
       "raw_event.headers.Message-ID",
@@ -319,31 +323,34 @@ const normalizeEvent = (inputRecord) => {
       "raw_request_body.message_id",
       "raw_request_body.headers.Message-ID",
       "raw_request.messageId",
-    "raw_request.message_id",
-    "raw_request.headers.Message-ID",
-    "mail.messageId",
+      "raw_request.message_id",
+      "raw_request.headers.Message-ID",
+      "mail.messageId",
       "mail.message_id",
       "smtp.messageId",
       "smtp-id",
       "smtp_id"
     ]),
-    email: getNestedValue(record, [
-    "email",
-    "recipient",
-      "raw_event.email",
-      "raw_event.recipient",
-      "raw_request_body.email",
-      "raw_request_body.recipient",
-      "raw_request.email",
-    "raw_request.recipient",
-    "recipientEmail",
-      "recipient_email",
-      "rcpt",
-      "rcpt_to",
-      "to",
-      "mail.to",
-      "envelope.to"
-    ]),
+    email: (() => {
+      const val = getNestedValue(record, [
+        "email",
+        "recipient",
+        "raw_event.email",
+        "raw_event.recipient",
+        "raw_request_body.email",
+        "raw_request_body.recipient",
+        "raw_request.email",
+        "raw_request.recipient",
+        "recipientEmail",
+        "recipient_email",
+        "rcpt",
+        "rcpt_to",
+        "to",
+        "mail.to",
+        "envelope.to"
+      ]);
+      return val ? String(val).trim().toLowerCase() : undefined;
+    })(),
     providerEventId: getNestedValue(record, [
       "raw_event.id",
       "raw_request_body.id",
@@ -355,32 +362,32 @@ const normalizeEvent = (inputRecord) => {
       "provider_event_id"
     ]),
     occurredAt: getNestedValue(record, [
-    "timestamp",
-    "time",
-    "request_timestamp",
-    "event_time",
-    "created_time",
-    "created_at",
-    "raw_event.event_time",
-    "raw_event.created_time",
-    "raw_request_body.event_time",
-    "raw_request_body.created_time",
-    "raw_request_body.timestamp",
-    "raw_request.event_time",
-    "raw_request.created_time",
-    "createdAt",
+      "timestamp",
+      "time",
+      "request_timestamp",
+      "event_time",
+      "created_time",
+      "created_at",
+      "raw_event.event_time",
+      "raw_event.created_time",
+      "raw_request_body.event_time",
+      "raw_request_body.created_time",
+      "raw_request_body.timestamp",
+      "raw_request.event_time",
+      "raw_request.created_time",
+      "createdAt",
       "created_at",
       "eventTime",
       "event_time"
     ]),
     bounceType: normalizeBounceType(record),
     bounceReason: getNestedValue(record, [
-    "reason",
-    "response_message",
-    "raw_event.response.content",
-    "raw_request_body.response.content",
-    "raw_request.response.content",
-    "bounceReason",
+      "reason",
+      "response_message",
+      "raw_event.response.content",
+      "raw_request_body.response.content",
+      "raw_request.response.content",
+      "bounceReason",
       "bounce_reason",
       "error",
       "message",
@@ -602,6 +609,14 @@ const hasExistingEvent = async (event, sentEvent) => {
   return Boolean(existing);
 };
 
+const getTodayString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const syncDeliveryStatuses = async () => {
   const url = process.env.MAIL_STATUS_WEBHOOK_URL || DEFAULT_STATUS_URL;
   const headers = {};
@@ -624,8 +639,21 @@ export const syncDeliveryStatuses = async () => {
   };
 
   const pageLimit = Math.max(1, DELIVERY_STATUS_PAGE_LIMIT);
+
+  const todayStr = getTodayString();
+  let scannedPageNumbers = new Set();
+  try {
+    const scannedPagesToday = await ScannedPage.find({ scannedDate: todayStr }).lean();
+    scannedPageNumbers = new Set(scannedPagesToday.map(sp => sp.page));
+  } catch (err) {
+    console.error("DELIVERY STATUS SYNC: Failed to fetch scanned pages from DB:", err.message);
+  }
+
   let page = 1;
-  let totalPages = 1;
+  while (scannedPageNumbers.has(page)) {
+    page++;
+  }
+  let totalPages = page;
   let stopSync = false;
 
   do {
@@ -676,9 +704,9 @@ export const syncDeliveryStatuses = async () => {
         const sentMatch = buildSentMatch(event);
         const sentEvent = sentMatch
           ? await Tracking.findOne({
-              ...sentMatch,
-              eventType: "sent"
-            }).sort({ createdAt: -1 }).lean()
+            ...sentMatch,
+            eventType: "sent"
+          }).sort({ createdAt: -1 }).lean()
           : null;
 
         if (!sentEvent && !event.trackingId && !event.messageId && !event.email) {
@@ -693,6 +721,8 @@ export const syncDeliveryStatuses = async () => {
           result.unmatched += 1;
           continue;
         }
+
+
 
         if (event.eventType === "delivered") {
           const deliveryEvent = await createDeliveryStatusEventIfNew(event, sentEvent);
@@ -726,6 +756,17 @@ export const syncDeliveryStatuses = async () => {
         console.error(`DELIVERY STATUS SYNC RECORD ERROR:`, error.message, record);
         result.errors.push(error.message);
       }
+    }
+
+    // Mark page as scanned today
+    try {
+      await ScannedPage.create({
+        page,
+        scannedDate: todayStr
+      });
+      console.log(`DELIVERY STATUS SYNC: Marked page ${page} as scanned today (${todayStr})`);
+    } catch (dbErr) {
+      console.warn(`DELIVERY STATUS SYNC: Failed to mark page ${page} as scanned:`, dbErr.message);
     }
 
     // Early exit check: If all records processed on this page were duplicates, we have caught up

@@ -11,41 +11,49 @@ import {
    resumeBulkEmailController,
    thankYou
 } from "../controllers/emailController.js";
+import { requireAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 router.post(
    "/send-email",
+   requireAuth,
    sendEmailController
 );
 
 router.post(
    "/bulk-email",
+   requireAuth,
    createBulkEmailController
 );
 
 router.post(
    "/bulk-email/import/preview",
+   requireAuth,
    previewBulkEmailImportController
 );
 
 router.post(
    "/bulk-email/import",
+   requireAuth,
    createBulkEmailImportController
 );
 
 router.get(
    "/bulk-email/:id",
+   requireAuth,
    getBulkEmailController
 );
 
 router.post(
    "/bulk-email/:id/pause",
+   requireAuth,
    pauseBulkEmailController
 );
 
 router.post(
    "/bulk-email/:id/resume",
+   requireAuth,
    resumeBulkEmailController
 );
 

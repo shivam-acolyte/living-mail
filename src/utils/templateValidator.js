@@ -21,7 +21,9 @@ const SYSTEM_VARIABLES = new Set([
 const SUPPORTED_AMP_COMPONENTS = new Set([
   "amp-img",
   "amp-form",
-  "amp-carousel"
+  "amp-carousel",
+  "amp-state",
+  "amp-bind"
 ]);
 
 const addIssue = (issues, severity, code, message, meta = {}) => {

@@ -1,0 +1,173 @@
+{
+  "name": "Livng london test 3",
+  "text": "The Rooftop Everyone\n\nWill Be Talking About\n\nAn ideal student home with easy access to the University of West London, Richmond American University London, and central London campuses.\n\n© 2026 ACOLYTE LIVING PRIVATE LIMITED. All rights reserved\n\nNeed help? Contact our 24/7 Support at support@acolyteliving.com",
+  "theme": {
+    "width": 500,
+    "textColor": "#1f2430",
+    "fontFamily": "Helvetica, Arial, sans-serif",
+    "mutedColor": "#9aa1ac",
+    "contentColor": "#1e1b4b",
+    "primaryColor": "#4338ca",
+    "thankYouText": "Your response was submitted.",
+    "thankYouTitle": "Thank you",
+    "backgroundColor": "#eef1f6",
+    "thankYouButtonUrl": "https://startupflora.com",
+    "thankYouTextColor": "#064e3b",
+    "thankYouButtonText": "Visit",
+    "thankYouShowButton": false,
+    "thankYouTitleColor": "#047857",
+    "thankYouBorderColor": "#34d399",
+    "thankYouButtonColor": "#0f766e",
+    "thankYouBackgroundColor": "#ecfdf5",
+    "thankYouButtonTextColor": "#ffffff"
+  },
+  "blocks": [
+    {
+      "id": "state-block",
+      "type": "rawHtml",
+      "props": {
+        "html": "<amp-state id=\"offerState\">\n    <script type=\"application/json\">\n      { \"showOfferForm\": false }\n    </script>\n  </amp-state>"
+      }
+    },
+    {
+      "id": "hero-image",
+      "type": "image",
+      "props": {
+        "alt": "Frame 1171275453 (1)",
+        "src": "https://amp.startupflora.com/template-assets/images/frame-1171275453-1-b60d4302cc90.png",
+        "width": 500,
+        "height": 63,
+        "layout": "responsive",
+        "imageWidth": 500,
+        "bannerWidth": 500,
+        "imageHeight": 63,
+        "bannerHeight": 63
+      }
+    },
+    {
+      "id": "headline-1",
+      "type": "heading",
+      "props": {
+        "text": "The Rooftop Everyone",
+        "align": "center",
+        "color": "#ffffff",
+        "level": "h2",
+        "fontSize": 29,
+        "marginTop": 10,
+        "fontWeight": 600,
+        "lineHeight": "1.5",
+        "paddingTop": 8,
+        "marginBottom": -11,
+        "backgroundColor": "transparent"
+      }
+    },
+    {
+      "id": "headline-2",
+      "type": "heading",
+      "props": {
+        "text": "Will Be Talking About",
+        "align": "center",
+        "color": "#ffffff",
+        "level": "h2",
+        "fontSize": 29,
+        "fontWeight": 600,
+        "lineHeight": "1.5",
+        "marginBottom": 14,
+        "backgroundColor": "transparent"
+      }
+    },
+    {
+      "id": "description-text",
+      "type": "text",
+      "props": {
+        "text": "An ideal student home with easy access to the University of West London, Richmond American University London, and central London campuses.",
+        "align": "center",
+        "color": "#edeff3",
+        "fontSize": 16.5,
+        "lineHeight": 1.6,
+        "paddingLeft": 32,
+        "marginBottom": 28,
+        "paddingRight": 32,
+        "backgroundColor": "transparent"
+      }
+    },
+    {
+      "id": "urgency-pulse-block",
+      "type": "rawHtml",
+      "props": {
+        "html": "<div style=\"margin: 0 20px 20px; padding: 16px 18px; background: linear-gradient(135deg, #4338ca, #1e1b4b); border: 1px solid #4338ca; border-radius: 12px; font-family: Helvetica, Arial, sans-serif;\" [hidden]=\"showOfferForm\">\n      <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;\">\n        <p style=\"margin: 0; font-size: 14px; color: #ffffff; font-weight: 600;\">\n          🔥 Only 3 rooms left at this price!\n        </p>\n        <span style=\"background-color:#ffffff;color:#4338ca;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;\">Limited</span>\n      </div>\n      <div style=\"background-color:rgba(255,255,255,0.2);border-radius:999px;height:8px;overflow:hidden;margin-top:8px;\">\n        <div style=\"background:linear-gradient(90deg, #ffffff, #a5b4fc);height:100%;width:85%;\"></div>\n      </div>\n      <p style=\"margin: 8px 0 0 0; font-size: 12px; color: rgba(255,255,255,0.85);\">85% booked — Offer ends July 15th</p>\n    </div>"
+      }
+    },
+    {
+      "id": "property-carousel",
+      "type": "rawHtml",
+      "props": {
+        "html": "<amp-carousel class=\"property-carousel\" height=\"460\" layout=\"fixed-height\" type=\"slides\" autoplay loop delay=\"4000\" [hidden]=\"showOfferForm\">\n      <!-- Slide 1: Ensuite -->\n      <div>\n        <div style=\"background-color:#ffffff;border:1px solid #e0e0e0;border-radius:16px;overflow:hidden;margin:0 10px;text-align:left;box-sizing:border-box;font-family:Helvetica, Arial, sans-serif; position:relative;\">\n          <div style=\"position:relative;\">\n            <amp-img src=\"https://amp.startupflora.com/template-assets/images/paragon.webp\" alt=\"The Paragon\" width=\"500\" height=\"220\" layout=\"responsive\"></amp-img>\n            <div class=\"discount-badge\" style=\"position:absolute;top:12px;right:12px;background:linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);color:#1A1A1A;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:1000;text-align:center;line-height:1.3;box-shadow:0 4px 12px rgba(239, 68, 68, 0.4);z-index:10;\">\n              <span style=\"display:block;font-size:10px;font-weight:600;opacity:0.9;text-transform:uppercase;letter-spacing:0.5px;\">Get Up To</span>\n              £500 OFF\n            </div>\n          </div>\n          <div style=\"padding:20px;box-sizing:border-box\">\n            <h3 style=\"font-size:18px;font-weight:bold;margin:0 0 5px 0;color:#111827;font-family:Helvetica, Arial, sans-serif\">The Paragon</h3>\n            <p style=\"font-size:13.5px;color:#9aa1ac;margin:0 0 10px 0;font-family:Helvetica, Arial, sans-serif\">📍 Brentford, London</p>\n            <p style=\"font-size:20px;color:#4338ca;font-weight:bold;margin:0 0 20px 0;font-family:Helvetica, Arial, sans-serif\">Starting from £306/week</p>\n            <button on=\"tap:AMP.setState({ showOfferForm: true })\" style=\"display:block;box-sizing:border-box;background:linear-gradient(135deg,#4338ca,#1e1b4b);color:#ffffff;text-decoration:none;padding:14px;border-radius:12px;font-size:15.5px;font-weight:bold;text-align:center;width:100%;font-family:Helvetica, Arial, sans-serif;border:none;\">Enquire Now  →</button>\n          </div>\n        </div>\n      </div>\n      <!-- Slide 2: iq -->\n      <div>\n        <div style=\"background-color:#ffffff;border:1px solid #e0e0e0;border-radius:16px;overflow:hidden;margin:0 10px;text-align:left;box-sizing:border-box;font-family:Helvetica, Arial, sans-serif; position:relative;\">\n          <div style=\"position:relative;\">\n            <amp-img src=\"https://amp.startupflora.com/template-assets/images/iqcity.webp\" alt=\"iq city\" width=\"500\" height=\"220\" layout=\"responsive\"></amp-img>\n            <div class=\"discount-badge\" style=\"position:absolute;top:12px;right:12px;background:linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);color:#1A1A1A;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:1000;text-align:center;line-height:1.3;box-shadow:0 4px 12px rgba(239, 68, 68, 0.4);z-index:10;\">\n              <span style=\"display:block;font-size:10px;font-weight:600;opacity:0.9;text-transform:uppercase;letter-spacing:0.5px;\">Get Up To</span>\n              £500 OFF\n            </div>\n          </div>\n          <div style=\"padding:20px;box-sizing:border-box\">\n            <h3 style=\"font-size:18px;font-weight:bold;margin:0 0 5px 0;color:#111827;font-family:Helvetica, Arial, sans-serif\">IQ City London</h3>\n            <p style=\"font-size:13.5px;color:#9aa1ac;margin:0 0 10px 0;font-family:Helvetica, Arial, sans-serif\">📍11 Bastwick Street, London </p>\n            <p style=\"font-size:20px;color:#4338ca;font-weight:bold;margin:0 0 20px 0;font-family:Helvetica, Arial, sans-serif\">Starting from £249/week</p>\n            <button on=\"tap:AMP.setState({ showOfferForm: true })\" style=\"display:block;box-sizing:border-box;background:linear-gradient(135deg,#4338ca,#1e1b4b);color:#ffffff;text-decoration:none;padding:14px;border-radius:12px;font-size:15.5px;font-weight:bold;text-align:center;width:100%;font-family:Helvetica, Arial, sans-serif;border:none;\">Enquire Now  →</button>\n          </div>\n        </div>\n      </div>\n      <!-- Slide 3: iQ Will Wyatt Court -->\n      <div>\n        <div style=\"background-color:#ffffff;border:1px solid #e0e0e0;border-radius:16px;overflow:hidden;margin:0 10px;text-align:left;box-sizing:border-box;font-family:Helvetica, Arial, sans-serif; position:relative;\">\n          <div style=\"position:relative;\">\n            <amp-img src=\"https://amp.startupflora.com/template-assets/images/iqwaytt.webp\" alt=\"iQ Will Wyatt Court\" width=\"500\" height=\"220\" layout=\"responsive\"></amp-img>\n            <div class=\"discount-badge\" style=\"position:absolute;top:12px;right:12px;background:linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);color:#1A1A1A;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:1000;text-align:center;line-height:1.3;box-shadow:0 4px 12px rgba(239, 68, 68, 0.4);z-index:10;\">\n              <span style=\"display:block;font-size:10px;font-weight:600;opacity:0.9;text-transform:uppercase;letter-spacing:0.5px;\">Get Up To</span>\n              £500 OFF\n            </div>\n          </div>\n          <div style=\"padding:20px;box-sizing:border-box\">\n            <h3 style=\"font-size:18px;font-weight:bold;margin:0 0 5px 0;color:#111827;font-family:Helvetica, Arial, sans-serif\">iQ Will Wyatt Court</h3>\n            <p style=\"font-size:13.5px;color:#9aa1ac;margin:0 0 10px 0;font-family:Helvetica, Arial, sans-serif\">📍168 Pitfield Street, London</p>\n            <p style=\"font-size:20px;color:#4338ca;font-weight:bold;margin:0 0 20px 0;font-family:Helvetica, Arial, sans-serif\">Starting from £400/week</p>\n            <button on=\"tap:AMP.setState({ showOfferForm: true })\" style=\"display:block;box-sizing:border-box;background:linear-gradient(135deg,#4338ca,#1e1b4b);color:#ffffff;text-decoration:none;padding:14px;border-radius:12px;font-size:15.5px;font-weight:bold;text-align:center;width:100%;font-family:Helvetica, Arial, sans-serif;border:none;\">Enquire Now  →</button>\n          </div>\n        </div>\n      </div>\n    </amp-carousel>"
+      }
+    },
+    {
+      "id": "offer-form-block",
+      "type": "rawHtml",
+      "props": {
+        "html": "<div class=\"offer-form-section\" [class]=\"showOfferForm ? 'offer-form-section is-visible' : 'offer-form-section'\" hidden [hidden]=\"!showOfferForm\" style=\"margin: 0 20px 24px;\">\n      <div style=\"background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.15);\">\n        <form action-xhr=\"https://your-endpoint.com/submit-offer\" method=\"POST\" style=\"margin:0;\">\n          <div class=\"form-content-wrapper\">\n            <div class=\"offer-form-header\" style=\"position: relative; padding: 28px 24px 20px; text-align: center; background: linear-gradient(135deg, #4338ca, #1e1b4b);\">\n              <div style=\"font-size: 40px; margin-bottom: 8px;\">🎁</div>\n              <h3 style=\"margin: 0 0 6px 0; font-size: 22px; color: #ffffff; font-weight: 700;\">Book Your Student Accommodation</h3>\n              <p style=\"margin: 0; font-size: 13px; color: rgba(255,255,255,0.85);\">Save up to £500 on your booking!</p>\n              <button type=\"button\" on=\"tap:AMP.setState({ showOfferForm: false })\" style=\"position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.2);border:none;color:#ffffff;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;\">✕</button>\n            </div>\n            <div style=\"padding: 24px;\">\n              <input type=\"text\" name=\"full_name\" placeholder=\"Full Name\" style=\"width: 100%; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #111827;\">\n              <div style=\"display: flex; gap: 10px; margin-bottom: 14px;\">\n                <input type=\"text\" name=\"country_code\" value=\"+44\" aria-label=\"Country code\" style=\"width: 70px; padding: 14px 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; background: #f9fafb; color: #111827; flex-shrink: 0; text-align: center; box-sizing: border-box;\">\n                <input type=\"tel\" name=\"mobile\" placeholder=\"Mobile Number *\" required style=\"flex: 1; padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #111827;\">\n              </div>\n              <input type=\"text\" name=\"best_time\" placeholder=\"Best Time to Connect\" style=\"width: 100%; padding: 14px 16px; margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 14px; box-sizing: border-box; background: #f9fafb; color: #111827;\">\n              <button type=\"submit\" style=\"width: 100%; padding: 16px; background: linear-gradient(135deg, #4338ca, #1e1b4b); color: #ffffff; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; font-family: Helvetica, Arial, sans-serif; box-shadow: 0 4px 16px rgba(67, 56, 202, 0.3);\">Unlock Offer →</button>\n              <p style=\"margin: 14px 0 0 0; font-size: 11px; color: #9ca3af; text-align: center;\">🔒 Your information is secure and never shared with third parties.</p>\n            </div>\n          </div>\n          <div submitting style=\"text-align: center; padding: 80px 30px;\">\n            <div style=\"display: inline-block; width: 44px; height: 44px; border: 4px solid #e5e7eb; border-top-color: #4338ca; border-radius: 50%;\"></div>\n            <p style=\"color: #6b7280; margin-top: 16px; font-size: 15px;\">Submitting your request...</p>\n          </div>\n          <div submit-success style=\"text-align: center; padding: 40px 30px;\">\n            <div style=\"font-size: 56px; margin-bottom: 16px;\">🎉</div>\n            <h3 style=\"color: #111827; margin: 0 0 8px 0; font-size: 24px; font-weight: 700;\">Thank You!</h3>\n            <p style=\"color: #6b7280; margin: 0 0 24px 0; font-size: 14px; line-height: 1.5;\">Our team will contact you within 24 hours with your exclusive offer.</p>\n            <div style=\"background: #f5f3ff; border-radius: 12px; padding: 20px; margin-bottom: 24px;\">\n              <p style=\"margin: 0 0 12px 0; font-size: 13px; color: #4338ca; font-weight: 600;\">While you wait, explore the property:</p>\n              <a href=\"https://acolyteliving.com/properties/uk/london/apartments-1717485\" target=\"_blank\" style=\"display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4338ca, #1e1b4b); color: #ffffff; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px rgba(67, 56, 202, 0.3);\">Visit Website →</a>\n            </div>\n            <button type=\"button\" on=\"tap:offer-form-block.hide\" style=\"background: none; border: none; color: #9ca3af; font-size: 13px; text-decoration: underline;\">Close this window</button>\n          </div>\n          <div submit-error style=\"text-align: center; padding: 50px 30px;\">\n            <div style=\"font-size: 48px; margin-bottom: 12px;\">⚠️</div>\n            <h3 style=\"color: #111827; margin: 0 0 8px 0; font-size: 20px;\">Oops! Something went wrong</h3>\n            <p style=\"color: #6b7280; margin: 0 0 20px 0; font-size: 14px;\">Please try again or contact us directly.</p>\n            <a href=\"mailto:support@acolyteliving.com\" style=\"color: #4338ca; text-decoration: none; font-size: 14px; font-weight: 600;\">support@acolyteliving.com</a>\n          </div>\n        </form>\n      </div>\n    </div>"
+      }
+    },
+    {
+      "id": "testimonials-block",
+      "type": "rawHtml",
+      "props": {
+        "html": "<div style=\"margin: 20px 20px 24px; padding: 20px; background: #f8fafc;background-image:linear-gradient(135deg,#4338ca,#1e1b4b); border-radius: 16px; border: 1px solid #e2e8f0; font-family: Helvetica, Arial, sans-serif;\">\n      <h3 style=\"margin: 0 0 16px 0; font-size: 16px; color: #ffffff; text-align: center; font-weight: 700;\">💬 What Students Say</h3>\n      <div style=\"background: white; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; margin-bottom: 12px;\">\n        <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:8px;\">\n          <div style=\"width:30px;height:30px;background:linear-gradient(135deg,#4338ca,#2F3FE4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:700;\">S</div>\n          <div>\n            <p style=\"margin:0;font-size:13px;font-weight:700;color:#111827;\">Sarah M.</p>\n            <p style=\"margin:0;font-size:11px;color:#6b7280;\">University of West London</p>\n          </div>\n          <span style=\"margin-left:auto;color:#f59e0b;\">★★★★★</span>\n        </div>\n        <p style=\"margin:0;font-size:13px;color:#4b5563;line-height:1.5;\">\"The rooftop is absolutely amazing for summer BBQs. Best decision I made for my student accommodation!\"</p>\n      </div>\n      <div style=\"background: white; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb;\">\n        <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:8px;\">\n          <div style=\"width:30px;height:30px;background:linear-gradient(135deg,#2F3FE4,#161D83);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:700;\">J</div>\n          <div>\n            <p style=\"margin:0;font-size:13px;font-weight:700;color:#111827;\">James K.</p>\n            <p style=\"margin:0;font-size:11px;color:#6b7280;\">Richmond American University</p>\n          </div>\n          <span style=\"margin-left:auto;color:#f59e0b;\">★★★★★</span>\n        </div>\n        <p style=\"margin:0;font-size:13px;color:#4b5563;line-height:1.5;\">\"15 min bus to campus. The gym and study rooms are game-changers. Staff are super helpful too!\"</p>\n      </div>\n    </div>"
+      }
+    },
+    {
+      "id": "social-row",
+      "type": "rawHtml",
+      "props": {
+        "html": "<div style=\"margin: 0 20px 20px; padding: 24px 20px; background: linear-gradient(135deg, #4338ca, #1e1b4b); border-radius: 16px; text-align: center; font-family: Helvetica, Arial, sans-serif;\">\n      <p style=\"margin: 0 0 16px 0; font-size: 14px; color: rgba(255,255,255,0.9); font-weight: 600; letter-spacing: 0.5px;\">FOLLOW US FOR UPDATES</p>\n      <div style=\"display: flex; justify-content: center; align-items: center; gap: 12px;\">\n        <a href=\"https://uk.linkedin.com/company/acolyte-living\" target=\"_blank\" style=\"display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);\">\n          <amp-img src=\"https://amp.startupflora.com/template-assets/social-logos/linkedin.svg\" alt=\"LinkedIn\" width=\"20\" height=\"20\" layout=\"fixed\" style=\"filter: brightness(0) invert(1);\"></amp-img>\n        </a>\n        <a href=\"https://chat.whatsapp.com/JcWX8UoVVO83P2BQsB5ZrE\" target=\"_blank\" style=\"display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);\">\n          <amp-img src=\"https://amp.startupflora.com/template-assets/social-logos/whatsapp.svg\" alt=\"WhatsApp\" width=\"20\" height=\"20\" layout=\"fixed\" style=\"filter: brightness(0) invert(1);\"></amp-img>\n        </a>\n        <a href=\"https://www.youtube.com/channel/UCWNifmyqJgBHSUH2ykFyHjA\" target=\"_blank\" style=\"display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);\">\n          <amp-img src=\"https://amp.startupflora.com/template-assets/social-logos/youtube.svg\" alt=\"YouTube\" width=\"20\" height=\"20\" layout=\"fixed\" style=\"filter: brightness(0) invert(1);\"></amp-img>\n        </a>\n        <a href=\"https://www.instagram.com/acolyte.living\" target=\"_blank\" style=\"display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);\">\n          <amp-img src=\"https://amp.startupflora.com/template-assets/social-logos/instagram.svg\" alt=\"Instagram\" width=\"20\" height=\"20\" layout=\"fixed\" style=\"filter: brightness(0) invert(1);\"></amp-img>\n        </a>\n        <a href=\"https://www.facebook.com/acolyteliving.uk\" target=\"_blank\" style=\"display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; text-decoration: none; border: 1px solid rgba(255,255,255,0.2);\">\n          <amp-img src=\"https://amp.startupflora.com/template-assets/social-logos/facebook.svg\" alt=\"Facebook\" width=\"20\" height=\"20\" layout=\"fixed\" style=\"filter: brightness(0) invert(1);\"></amp-img>\n        </a>\n      </div>\n      <p style=\"margin: 14px 0 0 0; font-size: 12px; color: rgba(255,255,255,0.6);\">Join 5,000+ students in our community</p>\n    </div>"
+      }
+    },
+    {
+      "id": "text-1783341720490-5bvbk",
+      "type": "text",
+      "props": {
+        "text": "© 2026 ACOLYTE LIVING PRIVATE LIMITED. All rights reserved",
+        "align": "center",
+        "color": "#ffffff",
+        "fontSize": 15,
+        "fontWeight": "100",
+        "lineHeight": "1.5"
+      }
+    },
+    {
+      "id": "text-1783341812405-gxbqc",
+      "type": "text",
+      "props": {
+        "text": "Need help? Contact our 24/7 Support at support@acolyteliving.com",
+        "align": "center",
+        "color": "#ffffff",
+        "fontSize": 15,
+        "fontWeight": "100",
+        "lineHeight": "1.5"
+      }
+    },
+    {
+      "id": "footer-block",
+      "type": "footer",
+      "props": {
+        "textColor": "#6b7280",
+        "titleColor": "#ffffff",
+        "unsubscribe": true,
+        "unsubscribeUrl": "{{unsubscribeUrl}}",
+        "unsubscribeText": "Unsubscribe"
+      }
+    }
+  ],
+  "subject": "Hi {{email}}, check your eligibility",
+  "version": 1,
+  "thankYouText": "Your response was submitted.",
+  "thankYouButtonUrl": "https://startupflora.com",
+  "thankYouButtonText": "Visit",
+  "thankYouShowButton": false,
+  "thankYouButtonColor": "#0f766e",
+  "thankYouButtonTextColor": "#ffffff"
+}

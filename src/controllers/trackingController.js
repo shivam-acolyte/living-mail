@@ -6,6 +6,7 @@ import {
   isPostgresBackedOff,
   notePostgresConnectionFailure
 } from "../config/postgres.js";
+import { dispatchWebhookEvent } from "../services/webhookService.js";
 
 const parseSubmittedBody = (body) => {
   if (!body) {
@@ -107,7 +108,8 @@ const resolveTrackingIdentity = async (trackingId) => {
       templateName: sentEvent.templateName,
       senderEmail: sentEvent.senderEmail,
       senderProvider: sentEvent.senderProvider,
-      deliveryProvider: sentEvent.deliveryProvider
+      deliveryProvider: sentEvent.deliveryProvider,
+      metadata: sentEvent.metadata || {}
     };
   }
 
@@ -247,6 +249,15 @@ export const trackHandler = (emailType) => {
 
       await syncContactActivity(context.email);
 
+      dispatchWebhookEvent("email.open", {
+        trackingId: req.params.id,
+        email: context.email,
+        campaignName: context.campaignName,
+        campaignType: context.campaignType,
+        templateSlug: context.templateSlug,
+        metadata: context.metadata || {}
+      });
+
       const pixel = Buffer.from(
         "R0lGODlhAQABAAAAACwAAAAAAQABAAA=",
         "base64"
@@ -312,6 +323,17 @@ export const clickTracking = async (req, res) => {
     });
 
     await syncContactActivity(context.email);
+
+    dispatchWebhookEvent("email.click", {
+      trackingId: req.params.id,
+      email: context.email,
+      campaignName: context.campaignName,
+      campaignType: context.campaignType,
+      templateSlug: context.templateSlug,
+      clickedUrl: req.query.url,
+      clickedDomain: getClickedDomain(req.query.url),
+      metadata: context.metadata || {}
+    });
 
     return res.redirect(req.query.url);
 
@@ -408,6 +430,27 @@ export const ampFormTracking = async (req, res) => {
 
     await syncContactActivity(context.email);
 
+    dispatchWebhookEvent("email.click", {
+      trackingId,
+      email: context.email,
+      campaignName: context.campaignName,
+      campaignType: context.campaignType,
+      templateSlug: context.templateSlug,
+      clickedUrl: "AMP Submit Button",
+      clickedDomain: "AMP Submit Button",
+      metadata: context.metadata || {}
+    });
+
+    dispatchWebhookEvent("email.form_submitted", {
+      trackingId,
+      email: context.email,
+      campaignName: context.campaignName,
+      campaignType: context.campaignType,
+      templateSlug: context.templateSlug,
+      formSubmission: formData,
+      metadata: context.metadata || {}
+    });
+
     return res.json({
       success: true,
       source: "AMP",
@@ -470,6 +513,22 @@ export const htmlFormTracking = async (req, res) => {
         templateSlug
       })
     );
+
+    const isSpinWheel = formData?.is_spin_wheel === "true" || formData?.spin_result !== undefined || body?.is_spin_wheel === "true" || body?.spin_result !== undefined;
+    if (isSpinWheel && context.email) {
+      const existing = await Tracking.findOne({
+        email: context.email,
+        eventType: "form_submit",
+        "formSubmission.is_spin_wheel": "true"
+      });
+
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: "You have already spun the wheel!"
+        });
+      }
+    }
     const botSignal = getBotSignal(req);
 
     console.log("HTML/AMP WEB FORM BODY:", {
@@ -492,6 +551,17 @@ export const htmlFormTracking = async (req, res) => {
     });
 
     await syncContactActivity(context.email);
+
+    dispatchWebhookEvent("email.form_submitted", {
+      trackingId,
+      email: context.email,
+      campaignName: context.campaignName,
+      campaignType: context.campaignType,
+      templateSlug: context.templateSlug,
+      formSubmission: formData,
+      metadata: context.metadata || {}
+    });
+
     return res.json({
 
       success: true,

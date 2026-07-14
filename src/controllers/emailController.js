@@ -8,6 +8,7 @@ import {
   resumeBulkEmailCampaign
 } from "../services/bulkEmailService.js";
 import { resolveRecipients } from "../services/contactService.js";
+import SenderProfile from "../models/SenderProfile.js";
 import {
   importRecipientsFromSource,
   previewRecipientImport,
@@ -27,7 +28,6 @@ async (req, res) => {
          templateId,
          templateSlug,
          variables,
-         senderEmail,
          replyTo,
          replyToEmail
       } = req.body;
@@ -41,6 +41,14 @@ async (req, res) => {
 
       }
 
+      const activeProfile = await SenderProfile.findOne({ isActive: true, userId: req.user.id }).lean();
+      if (!activeProfile) {
+         return res.status(400).json({
+            success: false,
+            message: "No active SMTP profile configured. Please add and activate an SMTP profile in SMTP Settings."
+         });
+      }
+
       await sendTrackingEmail(
          email,
          subject,
@@ -50,8 +58,9 @@ async (req, res) => {
             templateId,
             templateSlug,
             variables,
-            senderEmail,
-            replyTo: replyTo || replyToEmail
+            senderEmail: activeProfile.fromEmail,
+            userId: req.user.id,
+            replyTo: replyTo || replyToEmail || activeProfile.fromEmail
          }
       );
 
@@ -74,6 +83,7 @@ async (req, res) => {
 
       res.status(500).json({
          success: false,
+         message: error.message,
          error: error.message
       });
 
@@ -94,11 +104,19 @@ export const createBulkEmailController = async (req, res) => {
       templateId,
       templateSlug,
       variables,
-      senderEmail,
       replyTo,
       replyToEmail,
-      scheduledAt
+      scheduledAt,
+      excludedEmails
     } = req.body;
+
+    const activeProfile = await SenderProfile.findOne({ isActive: true, userId: req.user.id }).lean();
+    if (!activeProfile) {
+      return res.status(400).json({
+        success: false,
+        message: "No active SMTP profile configured. Please add and activate an SMTP profile in SMTP Settings."
+      });
+    }
 
     const resolvedRecipients = await resolveRecipients({
       recipients,
@@ -115,9 +133,10 @@ export const createBulkEmailController = async (req, res) => {
       templateId,
       templateSlug,
       variables,
-      senderEmail,
-      replyTo: replyTo || replyToEmail,
-      scheduledAt
+      senderEmail: activeProfile.fromEmail,
+      replyTo: replyTo || replyToEmail || activeProfile.fromEmail,
+      scheduledAt,
+      excludedEmails
     });
 
     return res.status(201).json({
@@ -165,7 +184,6 @@ export const createBulkEmailImportController = async (req, res) => {
       templateId,
       templateSlug,
       variables,
-      senderEmail,
       replyTo,
       replyToEmail,
       scheduledAt,
@@ -173,8 +191,17 @@ export const createBulkEmailImportController = async (req, res) => {
       listId,
       saveListId,
       listName,
-      tags
+      tags,
+      excludedEmails
     } = req.body;
+
+    const activeProfile = await SenderProfile.findOne({ isActive: true, userId: req.user.id }).lean();
+    if (!activeProfile) {
+      return res.status(400).json({
+        success: false,
+        message: "No active SMTP profile configured. Please add and activate an SMTP profile in SMTP Settings."
+      });
+    }
 
     const importResult = await importRecipientsFromSource(req.body || {});
 
@@ -204,9 +231,10 @@ export const createBulkEmailImportController = async (req, res) => {
       templateId,
       templateSlug,
       variables,
-      senderEmail,
-      replyTo: replyTo || replyToEmail,
-      scheduledAt
+      senderEmail: activeProfile.fromEmail,
+      replyTo: replyTo || replyToEmail || activeProfile.fromEmail,
+      scheduledAt,
+      excludedEmails
     });
 
     return res.status(201).json({

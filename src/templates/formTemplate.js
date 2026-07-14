@@ -38,52 +38,20 @@ const ampWebTemplate = (trackingId, subject, campaignName, campaignType) => {
     src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"
   ></script>
 
-  <style amp-boilerplate>
-    body{
-      -webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;
-      -moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;
-      -ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;
-      animation:-amp-start 8s steps(1,end) 0s 1 normal both
-    }
-
-    @-webkit-keyframes -amp-start{
-      from{visibility:hidden}
-      to{visibility:visible}
-    }
-
-    @-moz-keyframes -amp-start{
-      from{visibility:hidden}
-      to{visibility:visible}
-    }
-
-    @-ms-keyframes -amp-start{
-      from{visibility:hidden}
-      to{visibility:visible}
-    }
-
-    @-o-keyframes -amp-start{
-      from{visibility:hidden}
-      to{visibility:visible}
-    }
-
-    @keyframes -amp-start{
-      from{visibility:hidden}
-      to{visibility:visible}
-    }
-  </style>
-
-  <noscript>
-    <style amp-boilerplate>
-      body{
-        -webkit-animation:none;
-        -moz-animation:none;
-        -ms-animation:none;
-        animation:none
-      }
-    </style>
-  </noscript>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
 
   <style amp-custom>
+
+    html, body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    *, *:before, *:after {
+      box-sizing: inherit;
+    }
 
     body{
       margin:0;
@@ -177,6 +145,34 @@ const ampWebTemplate = (trackingId, subject, campaignName, campaignType) => {
     .footer a{
       color:grey;
       font-size:12px;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      .container {
+        border-radius: 8px;
+      }
+      .form-wrapper {
+        padding: 16px;
+      }
+      .overall {
+        padding: 16px;
+        border-width: 2px;
+      }
+      h2 {
+        font-size: 20px;
+        margin-bottom: 16px;
+      }
+      .input-style {
+        padding: 12px;
+        font-size: 14px;
+      }
+      .button {
+        padding: 12px;
+        font-size: 15px;
+      }
     }
 
   </style>

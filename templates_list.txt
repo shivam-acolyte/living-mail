@@ -1,0 +1,308 @@
+﻿◇ injected env (12) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+Found 12 templates.
+ID: 78fb99f3-aa14-450f-b809-240acbfd84e4, Name: New for 5, Slug: new temprtf
+Source JSON keys: [ 'name', 'text', 'theme', 'blocks', 'subject', 'version' ]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>New for 5</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</s
+ID: 9fd47f9c-4ddd-4a5d-bf6c-71b619c8d740, Name: New for 5, Slug: new temprtfvv
+Source JSON keys: [ 'name', 'text', 'theme', 'blocks', 'subject', 'version' ]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>New for 5</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</s
+ID: b7b6b496-f9cd-44d0-8cbf-ff5cb99a2ccd, Name: New for 8, Slug: new temprtfvvbv
+Source JSON keys: [ 'name', 'text', 'theme', 'blocks', 'subject', 'version' ]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>New for 8</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</s
+ID: 34916550-2f68-46ba-9ada-fddaf23f9ef2, Name: New for 3, Slug: new temprt
+Source JSON keys: [ 'name', 'text', 'theme', 'blocks', 'subject', 'version' ]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>New for 3</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</s
+ID: 03cec2c6-d964-4920-b1b6-8fd25aca836e, Name: Living test com, Slug: Living t
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>Living test com</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:no
+ID: 88cbc742-f24b-4929-af73-b5926cbd093f, Name: test te, Slug: builder-demtto
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>test te</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  <script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{vis
+ID: 044e31ed-69bb-47c6-a4d6-6b5a9c57f006, Name: t t12, Slug: builder-demo1112
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>t t12</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</style
+ID: 25892129-6a41-4a4e-893a-6980400b28f1, Name: ttttttttttt, Slug: builder-demotttt
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>ttttttttttt</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}<
+ID: 2d7ef695-f1a9-4826-93aa-0e5da445a438, Name: Builder Demo Template, Slug: builder-demo
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>Builder Demo Template</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  <script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility
+ID: cbaf57bf-775d-4bf1-ab11-7ec64ac5796f, Name: spin wheel, Slug: builder-demo spin
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>spin wheel</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</
+ID: 010f01b6-3058-4525-8eee-6a18550aac10, Name: Builder Demo Template, Slug: builder-demosx
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>Builder Demo Template</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animat
+ID: b7f516b2-9d1c-4389-8a28-cabdc958868f, Name: Living test 1, Slug: 0001
+Source JSON keys: [
+  'name',
+  'text',
+  'theme',
+  'blocks',
+  'subject',
+  'version',
+  'thankYouText',
+  'thankYouButtonUrl',
+  'thankYouButtonText',
+  'thankYouShowButton',
+  'thankYouButtonColor',
+  'thankYouButtonTextColor'
+]
+Form HTML snippet: <!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>Living test 1</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none

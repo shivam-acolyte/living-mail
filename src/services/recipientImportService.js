@@ -1,6 +1,7 @@
 import ContactList from "../models/ContactList.js";
 import { parseCsv } from "../utils/csv.js";
 import { resolveRecipients, upsertContact } from "./contactService.js";
+import Tracking from "../models/Tracking.js";
 
 const EMAIL_FIELDS = [
   "email",
@@ -262,11 +263,46 @@ export const previewRecipientImport = async (payload = {}, limit = 25) => {
     )
   );
 
+  const sample = result.recipients.slice(0, limit);
+
+  // Fetch previous contact details for these sample emails
+  try {
+    const emails = sample.map(r => r.email);
+    if (emails.length) {
+      const trackingEvents = await Tracking.find({
+        email: { $in: emails },
+        eventType: "sent"
+      }).sort({ createdAt: -1 }).lean();
+
+      // Create a map of email -> last tracking event
+      const lastContactMap = {};
+      for (const event of trackingEvents) {
+        const emailLower = event.email.toLowerCase();
+        if (!lastContactMap[emailLower]) {
+          lastContactMap[emailLower] = {
+            campaignName: event.campaignName,
+            sentAt: event.createdAt
+          };
+        }
+      }
+
+      // Inject lastContact info into sample recipients
+      sample.forEach(recipient => {
+        const emailLower = recipient.email.toLowerCase();
+        if (lastContactMap[emailLower]) {
+          recipient.lastContact = lastContactMap[emailLower];
+        }
+      });
+    }
+  } catch (err) {
+    console.error("Failed to fetch tracking history for preview:", err);
+  }
+
   return {
     ...result,
     columns,
     total: result.recipients.length,
-    sample: result.recipients.slice(0, limit)
+    sample
   };
 };
 

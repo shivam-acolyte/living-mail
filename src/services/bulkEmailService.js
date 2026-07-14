@@ -2,7 +2,9 @@ import BulkEmailCampaign from "../models/BulkEmailCampaign.js";
 import BulkEmailRecipient from "../models/BulkEmailRecipient.js";
 import Tracking from "../models/Tracking.js";
 import sendTrackingEmail from "./emailService.js";
+import SenderProfile from "../models/SenderProfile.js";
 import { getSuppressedEmailSet, SuppressedEmailError } from "./suppressionService.js";
+import { dispatchWebhookEvent } from "./webhookService.js";
 import {
   isPostgresBackedOff,
   notePostgresConnectionFailure
@@ -164,7 +166,8 @@ export const createBulkEmailCampaign = async ({
   variables = {},
   senderEmail,
   replyTo,
-  scheduledAt
+  scheduledAt,
+  excludedEmails = []
 }) => {
   const normalizedRecipients = normalizeRecipients(recipients);
 
@@ -186,6 +189,13 @@ export const createBulkEmailCampaign = async ({
     throw new Error("Invalid schedule time");
   }
 
+  const activeProfile = await SenderProfile.findOne({ isActive: true }).lean();
+  const defaultSenderEmail = activeProfile ? activeProfile.fromEmail : null;
+
+  if (!senderEmail && !defaultSenderEmail) {
+    throw new Error("No active SMTP profile configured. Please configure and activate an SMTP profile in SMTP Settings.");
+  }
+
   const campaign = await BulkEmailCampaign.create({
     subject,
     campaignName,
@@ -193,18 +203,32 @@ export const createBulkEmailCampaign = async ({
     templateId,
     templateSlug,
     variables,
-    senderEmail: senderEmail || process.env.SMTP_FROM,
-    replyTo: replyTo || senderEmail || process.env.SMTP_FROM,
+    senderEmail: senderEmail || defaultSenderEmail,
+    replyTo: replyTo || senderEmail || defaultSenderEmail,
     status: scheduleDate ? "scheduled" : "pending",
     scheduledAt: scheduleDate,
     totalRecipients: normalizedRecipients.length
   });
 
-  const recipientDocs = normalizedRecipients.map((recipient) => ({
-    campaignId: campaign._id,
-    email: recipient.email,
-    variables: recipient.variables
-  }));
+  const abTest = variables?.abTest;
+  const isAbTest = abTest?.abTestEnabled;
+  const excludedSet = new Set(excludedEmails.map(e => String(e).toLowerCase().trim()));
+
+  const recipientDocs = normalizedRecipients.map((recipient, idx) => {
+    const recipientVars = { ...(recipient.variables || {}) };
+    if (isAbTest) {
+      recipientVars.abVariant = idx % 2 === 0 ? "A" : "B";
+    }
+    
+    const isExcluded = excludedSet.has(recipient.email.toLowerCase().trim());
+    return {
+      campaignId: campaign._id,
+      email: recipient.email,
+      variables: recipientVars,
+      status: isExcluded ? "skipped" : (recipient.status || "pending"),
+      skipReason: isExcluded ? "manual_exclude" : (recipient.skipReason || null)
+    };
+  });
 
   await BulkEmailRecipient.insertMany(recipientDocs, {
     ordered: false
@@ -658,33 +682,102 @@ const refreshCampaignCounts = async (campaignId) => {
 };
 
 const processRecipient = async (recipient, campaign) => {
+  let subject = campaign.subject;
+  let templateId = campaign.templateId;
+  let templateSlug = campaign.templateSlug;
+  let preheader = campaign.variables?.preheader;
+  
+  const abVariant = recipient.variables?.abVariant;
+  const abTest = campaign.variables?.abTest;
+
   try {
+
+    if (abTest?.abTestEnabled && abVariant) {
+      if (abVariant === "A") {
+        subject = abTest.subjectA || subject;
+        preheader = abTest.preheaderA || preheader;
+        if (abTest.templateSlugA) {
+          templateSlug = abTest.templateSlugA;
+          templateId = undefined;
+        }
+      } else if (abVariant === "B") {
+        subject = abTest.subjectB || subject;
+        preheader = abTest.preheaderB || preheader;
+        if (abTest.templateSlugB) {
+          templateSlug = abTest.templateSlugB;
+          templateId = undefined;
+        }
+      }
+    }
+
     const info = await sendTrackingEmail(
       recipient.email,
-      campaign.subject,
+      subject,
       campaign.campaignName,
       campaign.campaignType,
       {
-        templateId: campaign.templateId,
-        templateSlug: campaign.templateSlug,
+        templateId,
+        templateSlug,
         skipVerify: true,
         variables: {
           ...(campaign.variables || {}),
-          ...(recipient.variables || {})
+          ...(recipient.variables || {}),
+          preheader
         },
         senderEmail: campaign.senderEmail,
-        replyTo: campaign.replyTo
+        replyTo: campaign.replyTo,
+        abVariant
       }
     );
 
     await markRecipientSent(recipient._id, info);
+
+    dispatchWebhookEvent("email.sent", {
+      campaignId: campaign._id,
+      campaignName: campaign.campaignName,
+      campaignType: campaign.campaignType,
+      recipientEmail: recipient.email,
+      messageId: info?.messageId || info?.responseId || "",
+      subject,
+      templateSlug,
+      metadata: {
+        abVariant,
+        recipientId: recipient._id
+      }
+    });
   } catch (error) {
     if (error instanceof SuppressedEmailError || error?.code === "EMAIL_SUPPRESSED") {
       await markRecipientSkipped(recipient._id, "suppressed");
+      dispatchWebhookEvent("email.skipped", {
+        campaignId: campaign._id,
+        campaignName: campaign.campaignName,
+        campaignType: campaign.campaignType,
+        recipientEmail: recipient.email,
+        subject,
+        templateSlug,
+        reason: "suppressed",
+        metadata: {
+          abVariant,
+          recipientId: recipient._id
+        }
+      });
       return;
     }
 
     await markRecipientFailed(recipient._id, error);
+    dispatchWebhookEvent("email.failed", {
+      campaignId: campaign._id,
+      campaignName: campaign.campaignName,
+      campaignType: campaign.campaignType,
+      recipientEmail: recipient.email,
+      subject,
+      templateSlug,
+      errorMessage: error?.message || String(error),
+      metadata: {
+        abVariant,
+        recipientId: recipient._id
+      }
+    });
   }
 };
 
@@ -695,6 +788,14 @@ const processCampaign = async (campaign) => {
 
   await releaseStaleLocks(campaign._id);
 
+  if (!campaign.startedAt) {
+    try {
+      await evaluateFrequencyCapping(campaign);
+    } catch (err) {
+      console.error("Frequency capping check failed:", err);
+    }
+  }
+
   await BulkEmailCampaign.findByIdAndUpdate(campaign._id, {
     $set: {
       status: "running",
@@ -702,7 +803,7 @@ const processCampaign = async (campaign) => {
     }
   });
 
-  const capacity = await getRemainingDailyCapacity(campaign.senderEmail || process.env.SMTP_FROM);
+  const capacity = await getRemainingDailyCapacity(campaign.senderEmail);
 
   if (!capacity) {
     await BulkEmailCampaign.findByIdAndUpdate(campaign._id, {
@@ -850,4 +951,122 @@ export const stopBulkEmailWorker = async () => {
   while (workerRunning) {
     await sleep(250);
   }
+};
+
+const evaluateFrequencyCapping = async (campaign) => {
+  const frequencyCap = campaign.variables?.frequencyCap;
+  if (!frequencyCap || !frequencyCap.enabled) {
+    return;
+  }
+
+  const days = Number(frequencyCap.days);
+  if (!days || days <= 0) {
+    return;
+  }
+
+  const policy = frequencyCap.policy || "exclude"; // 'exclude', 'flag', 'include'
+  if (policy === "include") {
+    return;
+  }
+
+  const campaignOnly = Boolean(frequencyCap.campaignOnly);
+  const timeLimit = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // Find all pending recipients for this campaign
+  const recipients = await BulkEmailRecipient.find({
+    campaignId: campaign._id,
+    status: "pending"
+  }).select("email").lean();
+
+  if (!recipients.length) {
+    return;
+  }
+
+  const emails = recipients.map(r => r.email);
+
+  // Query tracking_events for sent emails in the range
+  const trackingQuery = {
+    email: { $in: emails },
+    eventType: "sent",
+    createdAt: { $gte: timeLimit }
+  };
+
+  if (campaignOnly) {
+    trackingQuery.campaignName = campaign.campaignName;
+  }
+
+  const recentTrackings = await Tracking.find(trackingQuery).select("email").lean();
+  if (!recentTrackings.length) {
+    return;
+  }
+
+  const contactedEmails = new Set(recentTrackings.map(t => t.email.toLowerCase()));
+
+  // Find recipient IDs that need to be skipped
+  const recipientsToSkip = recipients.filter(r => contactedEmails.has(r.email.toLowerCase()));
+  if (!recipientsToSkip.length) {
+    return;
+  }
+
+  const skipIds = recipientsToSkip.map(r => r._id);
+  const skipReason = policy === "flag" ? "frequency_cap_flagged" : "frequency_cap_exclude";
+
+  await BulkEmailRecipient.updateMany(
+    {
+      _id: { $in: skipIds }
+    },
+    {
+      $set: {
+        status: "skipped",
+        skipReason: skipReason
+      }
+    }
+  );
+
+  console.log(`Frequency capped ${skipIds.length} recipients for campaign ${campaign.campaignName} (Policy: ${policy})`);
+};
+
+export const retryFlaggedBulkEmailCampaign = async (campaignId) => {
+  assertId(campaignId, "campaign id");
+
+  // Reset skipped recipients with reason 'frequency_cap_flagged' or 'manual_exclude' back to pending
+  const result = await BulkEmailRecipient.updateMany(
+    {
+      campaignId,
+      status: "skipped",
+      skipReason: {
+        $in: ["frequency_cap_flagged", "manual_exclude"]
+      }
+    },
+    {
+      $set: {
+        status: "pending"
+      },
+      $unset: {
+        skipReason: ""
+      }
+    }
+  );
+
+  const campaign = await BulkEmailCampaign.findByIdAndUpdate(
+    campaignId,
+    {
+      $set: {
+        status: "pending",
+        lastError: ""
+      }
+    },
+    {
+      returnDocument: "after"
+    }
+  );
+
+  if (campaign) {
+    await enqueueCampaign(campaign._id);
+  }
+
+  return {
+    campaign,
+    retried: result.modifiedCount || 0
+  };
 };

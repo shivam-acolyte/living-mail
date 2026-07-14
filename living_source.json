@@ -1,0 +1,112 @@
+{
+  "name": "Living test 1",
+  "text": "Find Accomodation",
+  "theme": {
+    "width": 300,
+    "textColor": "#111827",
+    "fontFamily": "Arial, sans-serif",
+    "mutedColor": "#64748b",
+    "bannerWidth": 240,
+    "contentColor": "#ffffff",
+    "primaryColor": "#178218",
+    "thankYouText": "Your response was submitted.",
+    "thankYouTitle": "Thank you",
+    "backgroundColor": "#f8fafc",
+    "desktopImageWidth": 240,
+    "thankYouButtonUrl": "https://startupflora.com",
+    "thankYouTextColor": "#064e3b",
+    "thankYouButtonText": "Visit",
+    "thankYouShowButton": false,
+    "thankYouTitleColor": "#047857",
+    "thankYouBorderColor": "#34d399",
+    "thankYouButtonColor": "#0f766e",
+    "thankYouBackgroundColor": "#ecfdf5",
+    "thankYouButtonTextColor": "#ffffff"
+  },
+  "blocks": [
+    {
+      "id": "image-1780571174313-7oucn",
+      "type": "image",
+      "props": {
+        "alt": "Image",
+        "src": "https://res.cloudinary.com/dpgykcvsj/image/upload/v1780563439/Group_1000002194_1_2_mgsjd1.png",
+        "href": "https://acolyteliving.com",
+        "width": 600,
+        "height": 720,
+        "imageWidth": 600,
+        "bannerWidth": 600,
+        "imageHeight": 720,
+        "bannerHeight": 720
+      }
+    },
+    {
+      "id": "divider-1780571197570-tfdm5",
+      "type": "divider",
+      "props": {
+        "color": "#e5e7eb",
+        "margin": "12px 0"
+      }
+    },
+    {
+      "id": "form-1780571244436-3vvij",
+      "type": "form",
+      "props": {
+        "title": "Find Accomodation",
+        "fields": [
+          {
+            "name": "name",
+            "type": "text",
+            "label": "Name",
+            "required": true,
+            "placeholder": "Enter Your Name"
+          },
+          {
+            "name": "phone",
+            "type": "tel",
+            "label": "Phone No",
+            "required": true,
+            "placeholder": "Enter Your Phone No"
+          }
+        ],
+        "submitText": "Submit",
+        "titleAlign": "center",
+        "titleColor": "#0F52BA",
+        "borderColor": "#2563eb",
+        "borderWidth": 3,
+        "buttonColor": "#00258f",
+        "inputLabelColor": "#020617",
+        "showDescription": false,
+        "inputBorderColor": "#93C5FD",
+        "inputBorderWidth": 2,
+        "thankYouButtonUrl": "https://acolyteliving.com",
+        "thankYouShowButton": true,
+        "formBackgroundTransparent": true
+      }
+    },
+    {
+      "id": "divider-1780571917040-m703r",
+      "type": "divider",
+      "props": {
+        "color": "#e5e7eb",
+        "margin": "12px 0"
+      }
+    },
+    {
+      "id": "footer-1780571927103-bmah3",
+      "type": "footer",
+      "props": {
+        "unsubscribe": true,
+        "unsubscribeUrl": "{{unsubscribeUrl}}",
+        "unsubscribeText": "Unsubscribe"
+      }
+    }
+  ],
+  "subject": "Hi {{email}}, check your eligibility",
+  "version": 1,
+  "thankYouText": "Your response was submitted.",
+  "thankYouButtonUrl": "https://acolyteliving.com",
+  "thankYouButtonText": "Visit",
+  "thankYouShowButton": true,
+  "thankYouButtonColor": "#0f766e",
+  "thankYouButtonTextColor": "#ffffff"
+}

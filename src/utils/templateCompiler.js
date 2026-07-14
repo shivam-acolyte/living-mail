@@ -256,7 +256,13 @@ const getBlocks = (sourceJson = {}) => {
 const style = (values) => {
   return Object.entries(values)
     .filter(([, value]) => value !== undefined && value !== null && value !== "")
-    .map(([key, value]) => `${key}:${value}`)
+    .map(([key, value]) => {
+      let finalKey = key;
+      if (key === "background-color" && /gradient/i.test(String(value))) {
+        finalKey = "background";
+      }
+      return `${finalKey}:${value}`;
+    })
     .join(";");
 };
 
@@ -317,6 +323,7 @@ const renderText = (block, theme, tag = "p") => {
     margin: getBoxMargin(props, "0 0 14px"),
     padding: getBoxPadding(props, "0"),
     color: props.color || theme.textColor,
+    "background-color": props.backgroundColor || "transparent",
     "font-family": theme.fontFamily,
     "font-size": px(props.fontSize, htmlTag === "p" ? "16px" : "24px"),
     "font-weight": props.fontWeight || (htmlTag === "p" ? "400" : "700"),
@@ -472,8 +479,13 @@ const renderCard = (block, theme) => {
 </div>`;
 };
 
-const renderRawHtml = (block) => {
-  return block.props?.html || "";
+const renderRawHtml = (block, target) => {
+  let html = block.props?.html || "";
+  if (target === "formPage") {
+    html = html.replace('"showOfferForm": false', '"showOfferForm": true');
+    html = html.replace('id="offer-form-block" hidden', 'id="offer-form-block"');
+  }
+  return html;
 };
 
 const renderNavbar = (block, theme) => {
@@ -1011,10 +1023,38 @@ const renderCarousel = (block, theme) => {
   const getSlideAlt = (slide = {}) => slide.alt || slide.title || "Carousel slide";
   const visibleSlides = props.fallback === "first" ? slides.slice(0, 1) : slides.slice(0, Number(props.maxFallbackSlides) || 3);
 
+  const font = theme.fontFamily || "Arial, sans-serif";
+
   if (props.amp === true) {
     const autoplayAttr = props.autoplay !== false ? " autoplay" : "";
     const loopAttr = props.loop !== false ? " loop" : "";
     const delayAttr = (props.autoplay !== false && props.delay) ? ` delay="${Number(props.delay)}"` : "";
+
+    if (props.layout === "card") {
+      const titleColor = props.carouselTitleColor || "#333333";
+      const descColor = props.carouselDescriptionColor || "#888888";
+      const priceColor = props.carouselPriceColor || "#e74c3c";
+      const btnBg = props.carouselButtonBg || "#e74c3c";
+      const btnTextColor = props.carouselButtonTextColor || "#ffffff";
+      const btnPadding = props.carouselButtonPadding || "14px";
+      const btnRadius = px(props.carouselButtonRadius, "4px");
+      const btnFontSize = px(props.carouselButtonFontSize, "14px");
+
+      return `<amp-carousel class="property-carousel" height="${height}" layout="fixed-height" type="slides"${autoplayAttr}${loopAttr}${delayAttr}>
+        ${slides.map((slide) => `<div>
+          <div style="background-color:#ffffff;border:1px solid #e0e0e0;border-radius:${radius};overflow:hidden;margin:0 10px;text-align:left;box-sizing:border-box;font-family:${font}">
+            <amp-img src="${escapeAttr(getSlideSrc(slide))}" alt="${escapeAttr(getSlideAlt(slide))}" width="${width}" height="220" layout="responsive"></amp-img>
+            <div style="padding:20px;box-sizing:border-box">
+              <h3 style="font-size:${px(props.carouselTitleSize, "18px")};font-weight:bold;margin:0 0 5px 0;color:${escapeAttr(titleColor)};font-family:${font}">${escapeHtml(slide.title || "")}</h3>
+              <p style="font-size:${px(props.carouselDescriptionSize, "14px")};color:${escapeAttr(descColor)};margin:0 0 10px 0;font-family:${font}">📍 ${escapeHtml(slide.description || "")}</p>
+              <p style="font-size:${px(props.carouselPriceSize, "18px")};color:${escapeAttr(priceColor)};font-weight:bold;margin:0 0 20px 0;font-family:${font}">${escapeHtml(slide.price || "")}</p>
+              <a href="${escapeAttr(slide.href || "#")}" target="_blank" style="display:block;box-sizing:border-box;background:${escapeAttr(btnBg)};color:${escapeAttr(btnTextColor)};text-decoration:none;padding:${escapeAttr(btnPadding)};border-radius:${btnRadius};font-size:${btnFontSize};font-weight:bold;text-align:center;width:100%;font-family:${font}">${escapeHtml(slide.buttonText || "View Details")}</a>
+            </div>
+          </div>
+        </div>`).join("")}
+      </amp-carousel>`;
+    }
+
     return `<amp-carousel width="${width}" height="${height}" layout="responsive" type="slides"${autoplayAttr}${loopAttr}${delayAttr}>
       ${slides.map((slide) => `<div>
         ${slide.href ? `<a href="${escapeAttr(slide.href)}" target="_blank">` : ""}
@@ -1024,7 +1064,40 @@ const renderCarousel = (block, theme) => {
     </amp-carousel>`;
   }
 
-  return `<div style="font-family:${theme.fontFamily};text-align:center">
+  if (props.layout === "card") {
+    const titleColor = props.carouselTitleColor || "#333333";
+    const descColor = props.carouselDescriptionColor || "#888888";
+    const priceColor = props.carouselPriceColor || "#e74c3c";
+    const btnBg = props.carouselButtonBg || "#e74c3c";
+    const btnTextColor = props.carouselButtonTextColor || "#ffffff";
+    const btnPadding = props.carouselButtonPadding || "14px";
+    const btnRadius = px(props.carouselButtonRadius, "4px");
+    const btnFontSize = px(props.carouselButtonFontSize, "14px");
+
+    return `<div style="font-family:${font};text-align:center">
+      ${visibleSlides.map((slide) => `
+      <div style="margin:20px auto;max-width:${width}px;background-color:#ffffff;border:1px solid #e0e0e0;border-radius:${radius};overflow:hidden;text-align:left;box-sizing:border-box;box-shadow:0 4px 6px rgba(0,0,0,0.05)">
+        ${slide.href ? `<a href="${escapeAttr(slide.href)}" target="_blank" style="text-decoration:none">` : ""}
+        <img src="${escapeAttr(getSlideSrc(slide))}" alt="${escapeAttr(getSlideAlt(slide))}" width="${width}" style="${style({
+      display: "block",
+      width: "100%",
+      "max-width": `${width}px`,
+      height: "auto",
+      margin: "0 auto",
+      border: "0"
+    })}">
+        ${slide.href ? "</a>" : ""}
+        <div style="padding:20px;box-sizing:border-box">
+          <h3 style="font-size:${px(props.carouselTitleSize, "18px")};font-weight:bold;margin:0 0 5px 0;color:${escapeAttr(titleColor)};font-family:${font}">${escapeHtml(slide.title || "")}</h3>
+          <p style="font-size:${px(props.carouselDescriptionSize, "14px")};color:${escapeAttr(descColor)};margin:0 0 10px 0;font-family:${font}">📍 ${escapeHtml(slide.description || "")}</p>
+          <p style="font-size:${px(props.carouselPriceSize, "18px")};color:${escapeAttr(priceColor)};font-weight:bold;margin:0 0 20px 0;font-family:${font}">${escapeHtml(slide.price || "")}</p>
+          <a href="${escapeAttr(slide.href || "#")}" target="_blank" style="display:block;box-sizing:border-box;background:${escapeAttr(btnBg)};color:${escapeAttr(btnTextColor)};text-decoration:none;padding:${escapeAttr(btnPadding)};border-radius:${btnRadius};font-size:${btnFontSize};font-weight:bold;text-align:center;width:100%;font-family:${font}">${escapeHtml(slide.buttonText || "View Details")}</a>
+        </div>
+      </div>`).join("")}
+    </div>`;
+  }
+
+  return `<div style="font-family:${font};text-align:center">
     ${visibleSlides.map((slide) => `<div style="margin:10px 0">
       ${slide.href ? `<a href="${escapeAttr(slide.href)}" target="_blank" style="text-decoration:none">` : ""}
       <img src="${escapeAttr(getSlideSrc(slide))}" alt="${escapeAttr(getSlideAlt(slide))}" width="${width}" style="${style({
@@ -1040,6 +1113,30 @@ const renderCarousel = (block, theme) => {
       ${props.showTitles !== false && slide.title ? `<p style="margin:8px 0 0;font-weight:700;color:${theme.textColor}">${escapeHtml(slide.title)}</p>` : ""}
       ${props.showDescriptions !== false && slide.description ? `<p style="margin:4px 0 0;color:${theme.mutedColor};font-size:14px;line-height:1.45">${escapeHtml(slide.description)}</p>` : ""}
     </div>`).join("")}
+  </div>`;
+};
+
+const renderContainer = (block, target, theme) => {
+  const props = block.props || {};
+  const width = Number(props.width) || 600;
+  const radius = px(props.radius, "8px");
+  const font = theme.fontFamily || "Arial, sans-serif";
+
+  const bgImage = props.backgroundImage ? `background-image:url('${escapeAttr(props.backgroundImage)}');background-size:cover;background-position:center;` : "";
+  const bgStyle = /gradient/i.test(props.backgroundColor || "")
+    ? `background:${props.backgroundColor};`
+    : `background-color:${props.backgroundColor || "#ffffff"};`;
+
+  const inlineImage = props.showImage && props.imageSrc ? (
+    target === "amp"
+      ? `<div style="text-align:center;margin-bottom:15px;"><amp-img src="${escapeAttr(props.imageSrc)}" width="${Number(props.imageWidth) || width}" height="${Number(props.imageHeight) || 200}" layout="responsive" style="border-radius:${px(props.imageRadius, "0")};"></amp-img></div>`
+      : `<div style="text-align:center;margin-bottom:15px;"><img src="${escapeAttr(props.imageSrc)}" width="${Number(props.imageWidth) || width}" style="width:100%;max-width:${Number(props.imageWidth) || width}px;height:auto;border-radius:${px(props.imageRadius, "0")};border:0;display:block;margin:0 auto;" /></div>`
+  ) : "";
+
+  return `<div style="max-width:${width}px;margin:${getBoxMargin(props, "10px auto")};border-radius:${radius};overflow:hidden;${bgStyle}${bgImage}box-sizing:border-box;border:${props.border || "none"};padding:${getBoxPadding(props, "20px")};text-align:${props.align || "left"};font-family:${font};">
+    ${inlineImage}
+    ${props.title ? `<h3 style="font-size:20px;font-weight:bold;margin:0 0 10px 0;color:${props.titleColor || "#333333"};font-family:${font}">${escapeHtml(props.title)}</h3>` : ""}
+    ${props.text ? `<p style="font-size:14px;line-height:1.5;margin:0;color:${props.textColor || "#666666"};font-family:${font}">${escapeHtml(props.text)}</p>` : ""}
   </div>`;
 };
 
@@ -1240,26 +1337,26 @@ const renderAmpForm = (block, theme) => {
   })}">
   <div class="form-content-wrapper">
     ${props.title ? `<h2 style="${style({
-      margin: props.titleMargin || "0 0 8px",
-      color: props.titleColor || props.headingColor || theme.textColor,
-      "font-size": px(props.titleSize || props.titleFontSize, "24px")
-    })}">${escapeHtml(props.title)}</h2>` : ""}
+    margin: props.titleMargin || "0 0 8px",
+    color: props.titleColor || props.headingColor || theme.textColor,
+    "font-size": px(props.titleSize || props.titleFontSize, "24px")
+  })}">${escapeHtml(props.title)}</h2>` : ""}
     ${props.description ? `<p style="${style({
-      margin: props.descriptionMargin || "0 0 14px",
-      color: props.descriptionColor || props.mutedColor || theme.mutedColor
-    })}">${escapeHtml(props.description)}</p>` : ""}
+    margin: props.descriptionMargin || "0 0 14px",
+    color: props.descriptionColor || props.mutedColor || theme.mutedColor
+  })}">${escapeHtml(props.description)}</p>` : ""}
     ${fields}
     <button type="submit" style="${style({
-      width: "100%",
-      margin: "18px 0 0",
-      border: "0",
-      "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
-      background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
-      color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
-      padding: props.buttonPadding || props.submitButtonPadding || "13px",
-      "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
-      "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
-    })}">${escapeHtml(props.submitText || "Submit")}</button>
+    width: "100%",
+    margin: "18px 0 0",
+    border: "0",
+    "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
+    background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
+    color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
+    padding: props.buttonPadding || props.submitButtonPadding || "13px",
+    "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
+    "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
+  })}">${escapeHtml(props.submitText || "Submit")}</button>
   </div>
 
   <div submit-success><template type="amp-mustache">${renderThankYouMessage(props, theme)}</template></div>
@@ -1288,7 +1385,7 @@ const renderFormPageForm = (block, theme) => {
     560
   );
 
-  return `<form method="post" action-xhr="{{formActionUrl}}" target="_top" style="${style({
+  return `<form class="hosted-form" method="post" action-xhr="{{formActionUrl}}" target="_top" style="${style({
     margin: "0 auto",
     width: "100%",
     "max-width": `${formMaxWidth}px`,
@@ -1307,26 +1404,26 @@ const renderFormPageForm = (block, theme) => {
   })}">
   <div class="form-content-wrapper">
     ${props.title ? `<h1 style="${style({
-      margin: props.titleMargin || "0 0 8px",
-      color: props.titleColor || props.headingColor || theme.textColor,
-      "font-size": px(props.titleSize || props.titleFontSize, "24px")
-    })}">${escapeHtml(props.title)}</h1>` : ""}
+    margin: props.titleMargin || "0 0 8px",
+    color: props.titleColor || props.headingColor || theme.textColor,
+    "font-size": px(props.titleSize || props.titleFontSize, "24px")
+  })}">${escapeHtml(props.title)}</h1>` : ""}
     ${props.description ? `<p style="${style({
-      margin: props.descriptionMargin || "0 0 16px",
-      color: props.descriptionColor || props.mutedColor || theme.mutedColor
-    })}">${escapeHtml(props.description)}</p>` : ""}
+    margin: props.descriptionMargin || "0 0 16px",
+    color: props.descriptionColor || props.mutedColor || theme.mutedColor
+  })}">${escapeHtml(props.description)}</p>` : ""}
     ${renderFields(props.fields || [], false, getFormFieldTheme(props, theme))}
     <button type="submit" style="${style({
-      width: "100%",
-      margin: "20px 0 0",
-      border: "0",
-      "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
-      background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
-      color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
-      padding: props.buttonPadding || props.submitButtonPadding || "13px",
-      "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
-      "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
-    })}">${escapeHtml(props.submitText || "Submit")}</button>
+    width: "100%",
+    margin: "20px 0 0",
+    border: "0",
+    "border-radius": px(props.buttonRadius || props.submitButtonRadius, "6px"),
+    background: getButtonBackgroundColor(props) || theme.buttonColor || theme.primaryColor,
+    color: getButtonTextColor(props) || theme.buttonTextColor || "#ffffff",
+    padding: props.buttonPadding || props.submitButtonPadding || "13px",
+    "font-size": px(props.buttonFontSize || props.submitButtonFontSize, "16px"),
+    "font-weight": props.buttonFontWeight || props.submitButtonFontWeight || "700"
+  })}">${escapeHtml(props.submitText || "Submit")}</button>
   </div>
   
   <div submit-success>
@@ -1383,7 +1480,7 @@ const fontSize = (value, fallback, min = 12) => {
   return `clamp(${min}px, ${vw}vw, ${size}px)`;
 };
 
-const buildSvgWheel = (props, options) => {
+export const buildSvgWheel = (props, options) => {
   const segmentColors = props.segmentColors
     ? props.segmentColors.split(",").map(c => c.trim())
     : ["#f87171", "#fb923c", "#fbbf24", "#34d399", "#60a5fa", "#818cf8", "#a78bfa", "#f472b6"];
@@ -1537,72 +1634,110 @@ const renderSpinWheel = (block, theme, target) => {
 
   if (target === "amp") {
     const actionUrl = props.actionXhr || props.formAmpUrl || "{{formAmpUrl}}";
-    return `<div class="card" style="text-align:center">
-      <form method="post" action-xhr="${escapeAttr(actionUrl)}">
-        <input type="hidden" name="is_spin_wheel" value="true">
-        <input type="hidden" name="spin_wheel_block_id" value="${escapeAttr(block.id || "")}">
-        <input type="hidden" name="trackingid" value="{{trackingId}}">
-        <input type="hidden" name="templateId" value="{{templateId}}">
-        <input type="hidden" name="templateSlug" value="{{templateSlug}}">
-        <input type="hidden" name="campaignName" value="{{campaignName}}">
+    const safeId = block.id.replace(/-/g, "_");
+    return `<amp-state id="wheelState_${safeId}">
+      <script type="application/json">
+        { "step": "idle", "prizeCode": "", "prizeDesc": "" }
+      </script>
+    </amp-state>
 
-        <div class="form-content-wrapper">
-          <div class="title">${escapeHtml(props.title || "Spin the Wheel to Win!")}</div>
-          <div class="subtitle">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</div>
+    <div class="card" style="text-align:center">
+      <!-- STEP 1: Idle wheel, tap to spin -->
+      <div class="step visible" [class]="(wheelState_${safeId}.step || 'idle') == 'idle' ? 'step visible' : 'step'">
+        <div class="title">${escapeHtml(props.title || "Spin the Wheel to Win!")}</div>
+        <div class="subtitle">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</div>
 
-          <div style="margin:20px auto;max-width:240px">
-            <amp-img
-              src="{{baseUrl}}/template-assets/wheel/{{templateId}}.svg"
-              layout="responsive"
-              width="240"
-              height="240"
-              alt="Prize Wheel"
-            ></amp-img>
+        <form method="post"
+              id="wheelForm_${safeId}"
+              action-xhr="${escapeAttr(actionUrl)}"
+              on="submit:AMP.setState({wheelState_${safeId}:{step:'spinning'}}); submit-success:AMP.setState({wheelState_${safeId}:{step:'result', prizeCode: event.response.prizeCode || event.response.prizeLabel || 'SURPRISE', prizeDesc: event.response.prizeDesc || 'Congratulations!'}}); submit-error:AMP.setState({wheelState_${safeId}:{step:'error'}})">
+
+          <input type="hidden" name="is_spin_wheel" value="true">
+          <input type="hidden" name="spin_wheel_block_id" value="${escapeAttr(block.id || "")}">
+          <input type="hidden" name="trackingid" value="{{trackingId}}">
+          <input type="hidden" name="templateId" value="{{templateId}}">
+          <input type="hidden" name="templateSlug" value="{{templateSlug}}">
+          <input type="hidden" name="campaignName" value="{{campaignName}}">
+
+          <div class="wheel-wrap"
+               role="button"
+               tabindex="0"
+               on="tap:wheelForm_${safeId}.submit">
+            <amp-img src="${escapeAttr(props.customIdleImage || "{{baseUrl}}/template-assets/wheel/{{templateId}}.svg")}"
+                      width="240" height="240" layout="responsive"
+                      alt="Prize wheel"></amp-img>
           </div>
 
-          <button type="submit" class="btn">${escapeHtml(props.submitText || "🎰 Spin Now!")}</button>
+          <div [hidden]="(wheelState_${safeId}.step || 'idle') != 'idle'">
+            <button type="submit" class="btn">${escapeHtml(props.submitText || "🎰 Spin Now!")}</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- STEP 2: Spinning animation -->
+      <div class="step" [class]="wheelState_${safeId}.step == 'spinning' ? 'step visible' : 'step'">
+        <div class="title">${escapeHtml(props.spinningTitle || "Spinning…")}</div>
+        <div class="subtitle">${escapeHtml(props.spinningSubtitle || "Please wait while the wheel spins...")}</div>
+        <div class="wheel-wrap">
+          <amp-anim src="${escapeAttr(props.customSpinningImage || "https://res.cloudinary.com/dpgykcvsj/image/upload/v1783146943/wheel_GIF_by_Scorpion_Dagger_qijlpv.gif")}"
+                    width="240" height="240" layout="responsive"
+                    alt="Wheel spinning"></amp-anim>
+        </div>
+      </div>
+
+      <!-- STEP 3: Result screen -->
+      <div class="step" [class]="wheelState_${safeId}.step == 'result' ? 'step visible' : 'step'">
+        <div class="title">${escapeHtml(props.successTitle || "You won!")}</div>
+
+        <!-- Static "landed" wheel with the prize label overlaid on top -->
+        <div class="result-wheel-wrap">
+          <amp-img src="${escapeAttr(props.customLandedImage || "https://res.cloudinary.com/dpgykcvsj/image/upload/v1783149492/pngwing.com_1_eve3fn.png")}"
+                    width="200" height="200" layout="responsive"
+                    alt="Wheel landed on your prize"></amp-img>
+          <div class="result-wheel-label" [text]="wheelState_${safeId}.prizeCode">WELCOME10</div>
         </div>
 
-        <div submit-success>
-          <template type="amp-mustache">
-            <div class="result-box">
-              <div class="result-icon">🎉</div>
-              <div class="result-title">Congratulations!</div>
-              <div class="result-prize">You won: {{prizeLabel}}</div>
-            </div>
-          </template>
+        <div class="result-box" style="margin-top:20px">
+          <div class="result-icon">🎉</div>
+          <div class="result-title" [text]="wheelState_${safeId}.prizeCode">WELCOME10</div>
+          <div class="result-prize" [text]="wheelState_${safeId}.prizeDesc">10% off your next order</div>
         </div>
+        <br>
+        <button type="button" class="btn" style="cursor:pointer;outline:none" on="tap:AMP.setState({wheelState_${safeId}:{step:'idle'}})">${escapeHtml(props.successButtonText || "Spin Again")}</button>
+      </div>
 
-        <div submit-error>
-          <template type="amp-mustache">
-            <div style="padding:16px;text-align:center;color:#dc2626;font-weight:700">
-              ❌ Something went wrong. Please try again.
-            </div>
-          </template>
-        </div>
-      </form>
+      <!-- STEP 4: Error — shown if the backend request fails -->
+      <div class="step" [class]="wheelState_${safeId}.step == 'error' ? 'step visible' : 'step'">
+        <div class="title">${escapeHtml(props.errorTitle || "Oops!")}</div>
+        <div class="subtitle">${escapeHtml(props.errorSubtitle || "Something went wrong. Please try again.")}</div>
+        <button type="button" class="btn" style="cursor:pointer;outline:none" on="tap:AMP.setState({wheelState_${safeId}:{step:'idle'}})">${escapeHtml(props.errorButtonText || "Try Again")}</button>
+      </div>
     </div>`;
   }
 
   if (target === "formPage") {
-    return renderSpinWheelHostedBlock(block, theme);
+    return renderSpinWheel(block, theme, "amp");
   }
 
   // HTML email version (static redirect CTA)
+  const wheelImageHtml = props.customIdleImage
+    ? `<img src="${escapeAttr(props.customIdleImage)}" style="width:100%;height:100%;object-fit:contain" alt="Spin Wheel" />`
+    : buildSvgWheel(props, options);
+
   return `<div style="text-align:center;padding:24px;border:1px solid ${props.borderColor || "#e2e8f0"};border-radius:${px(props.radius || 12, "12px")};background-color:${props.formBackgroundColor || "#ffffff"};max-width:500px;margin:0 auto;font-family:${theme.fontFamily}">
     <h2 style="margin:0 0 8px;color:${props.titleColor || "#111827"};font-size:${fontSize(props.titleSize || 24, 24, 16)};font-weight:${props.titleWeight || 800}">${escapeHtml(props.title || "Spin the Wheel to Win!")}</h2>
     <p style="margin:0 0 16px;color:${props.descriptionColor || "#64748b"};font-size:${fontSize(props.descriptionSize || 14, 14, 12)}">${escapeHtml(props.description || "Try your luck and win exciting prizes.")}</p>
     
-    <div style="position:relative;margin:24px auto;width:200px;height:200px">
+    <div style="position:relative;margin:24px auto;width:240px;height:240px">
       ${buildPointerStyle(props)}
       <div style="width:100%;height:100%">
-        ${buildSvgWheel(props, options)}
+        ${wheelImageHtml}
       </div>
     </div>
     
     <div style="margin-top:16px">
       <a href="{{formHtmlUrl}}" target="_blank" style="display:inline-block;background-color:${props.buttonColor || theme.primaryColor || "#0f766e"};color:${props.buttonTextColor || "#ffffff"};border-radius:${px(props.buttonRadius || 999, "999px")};padding:12px 30px;font-size:16px;font-weight:800;text-decoration:none">
-        ${escapeHtml(props.submitText || "Spin the Wheel")}
+        ${escapeHtml(props.submitText || "🎰 Spin Now!")}
       </a>
     </div>
   </div>`;
@@ -1663,6 +1798,7 @@ const renderSpinWheelHostedBlock = (block, theme) => {
 
     <!-- Hidden Form -->
     <form id="spin-wheel-form" method="post" action="${escapeAttr(formActionUrl)}" style="margin:0">
+      <input type="hidden" name="is_spin_wheel" value="true">
       <input type="hidden" id="spin-result-input" name="spin_result" value="" required>
       <input type="hidden" name="email" value="{{email}}">
       <input type="hidden" name="campaignName" value="{{campaignName}}">
@@ -1731,7 +1867,8 @@ const renderSpinWheelHostedBlock = (block, theme) => {
 
             // Post result back to server
             const formData = new FormData(form);
-            fetch(form.action, {
+            const actionUrl = form.getAttribute('action-xhr') || form.action || form.getAttribute('action');
+            fetch(actionUrl, {
               method: 'POST',
               body: new URLSearchParams(formData),
               headers: {
@@ -1771,8 +1908,10 @@ const renderBlockInner = (block, target, theme) => {
       return renderShape(block, theme);
     case "card":
       return renderCard(block, theme);
+    case "container":
+      return renderContainer(block, target, theme);
     case "rawHtml":
-      return renderRawHtml(block);
+      return renderRawHtml(block, target);
     case "navbar":
       return renderNavbar(block, theme);
     case "social":
@@ -1972,32 +2111,41 @@ const getSpinWheelStyles = (sourceJson) => {
     return "";
   }
 
+  const props = spinWheelBlock.props || {};
+  const options = props.options || [
+    { label: "10% Off", value: "10_off", probability: 10 },
+    { label: "Free Shipping", value: "free_shipping", probability: 10 },
+    { label: "Try Again", value: "try_again", probability: 10 },
+    { label: "20% Off", value: "20_off", probability: 10 },
+    { label: "Gift Card", value: "gift_card", probability: 10 },
+    { label: "No Luck", value: "no_luck", probability: 10 }
+  ];
   return `
     .card {
-      background: #ffffff;
-      border-radius: 16px;
+      background: ${props.formBackgroundColor || "#ffffff"};
+      border-radius: ${px(props.radius || 16, "16px")};
       padding: 24px;
       text-align: center;
-      border: 1px solid #e5e7eb;
+      border: 1px solid ${props.borderColor || "#e5e7eb"};
       max-width: 500px;
       margin: 0 auto;
     }
     .title {
-      font-size: 28px;
-      font-weight: 700;
-      color: #111827;
+      font-size: ${fontSize(props.titleSize || 28, 28, 18)};
+      font-weight: ${props.titleWeight || 700};
+      color: ${props.titleColor || "#111827"};
       margin-bottom: 10px;
     }
     .subtitle {
-      color: #6b7280;
+      color: ${props.descriptionColor || "#6b7280"};
       margin-bottom: 20px;
-      font-size: 14px;
+      font-size: ${fontSize(props.descriptionSize || 14, 14, 12)};
     }
     .btn {
-      background: #7c3aed;
-      color: #ffffff;
+      background: ${props.buttonColor || "#7c3aed"};
+      color: ${props.buttonTextColor || "#ffffff"};
       border: none;
-      border-radius: 12px;
+      border-radius: ${px(props.buttonRadius || 12, "12px")};
       padding: 14px 36px;
       font-size: 18px;
       font-weight: 700;
@@ -2005,11 +2153,11 @@ const getSpinWheelStyles = (sourceJson) => {
       margin-top: 16px;
     }
     .result-box {
-      background: #ecfdf5;
-      border: 2px solid #34d399;
-      border-radius: 16px;
-      padding: 24px;
-      text-align: center;
+      background: ${props.thankYouBackgroundColor || "#ecfdf5"};
+      border: 1px solid ${props.thankYouBorderColor || "#34d399"};
+      border-radius: ${px(props.thankYouRadius || 16, "16px")};
+      padding: ${props.thankYouPadding || "24px"};
+      text-align: ${props.thankYouAlign || "center"};
       margin-top: 16px;
     }
     .result-icon {
@@ -2017,24 +2165,140 @@ const getSpinWheelStyles = (sourceJson) => {
       margin-bottom: 10px;
     }
     .result-title {
-      font-size: 22px;
-      font-weight: 700;
-      color: #047857;
+      font-weight: ${props.thankYouTitleWeight || 700};
+      color: ${props.thankYouTitleColor || "#047857"};
       margin-bottom: 6px;
+      font-size: ${props.thankYouTitleSize ? props.thankYouTitleSize + "px" : "22px"};
     }
     .result-prize {
-      font-size: 16px;
-      font-weight: 600;
-      color: #064e3b;
+      font-weight: ${props.thankYouTextWeight || 600};
+      color: ${props.thankYouTextColor || "#064e3b"};
+      font-size: ${props.thankYouTextSize ? props.thankYouTextSize + "px" : "16px"};
+    }
+    .step {
+      display: none;
+    }
+    .step.visible {
+      display: block;
+    }
+    .wheel-wrap {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      margin: 0 auto 20px;
+      cursor: pointer;
+    }
+    .wheel-wrap img {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .result-wheel-wrap {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto 16px;
+    }
+    .result-wheel-wrap img {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .result-wheel-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 90px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      text-align: center;
+      word-break: break-word;
     }
   `;
+};
+
+const getCarouselArrowStyles = (sourceJson) => {
+  let css = "";
+  const blocks = sourceJson.blocks || [];
+  blocks.forEach((block) => {
+    if (block.type === "carousel" && block.props?.layout === "card") {
+      const position = block.props.carouselArrowsPosition || "image";
+
+      if (position === "carousel") {
+        css += `
+    .property-carousel .amp-carousel-button {
+      top: 50%;
+      transform: translateY(-50%);
+    }
+        `;
+      } else if (position === "custom") {
+        const topVal = block.props.carouselArrowsTop ? `${block.props.carouselArrowsTop}px` : "110px";
+        css += `
+    .property-carousel .amp-carousel-button {
+      top: ${topVal};
+      transform: translateY(-50%);
+    }
+        `;
+      } else {
+        // "image" positioning: Center of the image area (Desktop = 110px, Mobile = 1px)
+        css += `
+    .property-carousel .amp-carousel-button {
+      top: 110px;
+      transform: translateY(-50%);
+    }
+    @media (max-width: 600px) {
+      .property-carousel .amp-carousel-button {
+        top: 1px;
+      }
+    }
+        `;
+      }
+    }
+  });
+
+  if (!css) {
+    css = `
+    .property-carousel .amp-carousel-button {
+      top: 110px;
+      transform: translateY(-50%);
+    }
+    @media (max-width: 600px) {
+      .property-carousel .amp-carousel-button {
+        top: 1px;
+      }
+    }
+    `;
+  }
+  return css;
 };
 
 const ampDocument = (sourceJson) => {
   const theme = getTheme(sourceJson);
   const body = renderBody(sourceJson, "amp");
-  const carouselScript = hasBlockType(sourceJson, "carousel")
+
+  const jsonStr = JSON.stringify(sourceJson);
+  const hasCarousel = hasBlockType(sourceJson, "carousel") || jsonStr.includes("amp-carousel");
+  const hasForm = hasBlockType(sourceJson, Array.from(interactiveBlockTypes)) || jsonStr.includes("<form");
+  const hasMustache = hasBlockType(sourceJson, Array.from(interactiveBlockTypes).filter(t => t !== "spinWheel")) || jsonStr.includes("amp-mustache");
+  const hasBind = hasBlockType(sourceJson, "spinWheel") || jsonStr.includes("amp-state") || jsonStr.includes("AMP.setState");
+  const hasAnim = hasBlockType(sourceJson, "spinWheel") || jsonStr.includes("amp-anim");
+
+  const carouselScript = hasCarousel
     ? '<script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>'
+    : "";
+  const formScript = hasForm
+    ? '<script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>'
+    : "";
+  const mustacheScript = hasMustache
+    ? '<script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>'
+    : "";
+  const bindScript = hasBind
+    ? '<script async custom-element="amp-bind" src="https://cdn.ampproject.org/v0/amp-bind-0.1.js"></script>'
+    : "";
+  const animScript = hasAnim
+    ? '<script async custom-element="amp-anim" src="https://cdn.ampproject.org/v0/amp-anim-0.1.js"></script>'
     : "";
 
   return `<!doctype html>
@@ -2043,9 +2307,11 @@ const ampDocument = (sourceJson) => {
   <meta charset="utf-8">
   ${colorSchemeMeta(theme)}
   <script async src="https://cdn.ampproject.org/v0.js"></script>
-  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  ${formScript}
   ${carouselScript}
-  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  ${mustacheScript}
+  ${bindScript}
+  ${animScript}
   <style amp4email-boilerplate>body{visibility:hidden}</style>
   <style amp-custom>
     body{${style({
@@ -2074,6 +2340,7 @@ const ampDocument = (sourceJson) => {
     }
     ${ampDeviceColorStyles(theme)}
     ${getSpinWheelStyles(sourceJson)}
+    ${getCarouselArrowStyles(sourceJson)}
   </style>
 </head>
 <body class="email-bg">
@@ -2087,7 +2354,8 @@ const ampDocument = (sourceJson) => {
 const formDocument = (sourceJson) => {
   const theme = getTheme(sourceJson);
   const blocks = getBlocks(sourceJson);
-  const carouselScript = hasBlockType(sourceJson, "carousel")
+  const jsonStr = JSON.stringify(sourceJson);
+  const carouselScript = (hasBlockType(sourceJson, "carousel") || jsonStr.includes("amp-carousel"))
     ? '<script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>'
     : "";
   const formBlock = blocks.find((block) => interactiveBlockTypes.has(block.type));
@@ -2125,7 +2393,8 @@ const formDocument = (sourceJson) => {
     "social",
     "socialLinks",
     "socialIcons",
-    "carousel"
+    "carousel",
+    "rawHtml"
   ]);
 
   const body = formBlock
@@ -2163,11 +2432,22 @@ const formDocument = (sourceJson) => {
   <title>${escapeHtml(sourceJson.formTitle || sourceJson.name || "Form")}</title>
   <script async src="https://cdn.ampproject.org/v0.js"></script>
   <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  <script async custom-element="amp-bind" src="https://cdn.ampproject.org/v0/amp-bind-0.1.js"></script>
+  <script async custom-element="amp-anim" src="https://cdn.ampproject.org/v0/amp-anim-0.1.js"></script>
   ${carouselScript}
   <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
-  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
-  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</style></noscript>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
   <style amp-custom>
+    html, body {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    *, *:before, *:after {
+      box-sizing: inherit;
+    }
     body{${style({
     margin: "0",
     "background-color": theme.backgroundColor,
@@ -2195,7 +2475,29 @@ const formDocument = (sourceJson) => {
     .hidden {
       display: none;
     }
+    @media only screen and (max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+      form.hosted-form {
+        padding: 16px;
+        border-radius: 6px;
+      }
+      form.hosted-form input,
+      form.hosted-form textarea,
+      form.hosted-form select {
+        padding: 10px;
+        font-size: 14px;
+      }
+      form.hosted-form button[type="submit"] {
+        padding: 11px;
+        font-size: 15px;
+        margin-top: 16px;
+      }
+    }
     ${ampDeviceColorStyles(theme)}
+    ${getSpinWheelStyles(sourceJson)}
+    ${getCarouselArrowStyles(sourceJson)}
   </style>
 </head>
 <body class="email-bg email-content">
@@ -2486,6 +2788,26 @@ export const builderBlockCatalog = [
             }
           }
         ]
+      }
+    }
+  },
+  {
+    type: "container",
+    label: "Container",
+    category: "layout",
+    block: {
+      type: "container",
+      props: {
+        width: 600,
+        height: "auto",
+        backgroundColor: "#ffffff",
+        radius: 8,
+        padding: "20px",
+        imageSrc: "https://via.placeholder.com/600x200.png?text=Container+Image",
+        imageWidth: 600,
+        showImage: true,
+        title: "Container Title",
+        text: "Enter your custom container text here."
       }
     }
   }

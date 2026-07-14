@@ -9,6 +9,7 @@ import {
   listCampaigns,
   rescheduleCampaign,
   retryFailedCampaignRecipients,
+  retryFlaggedCampaignRecipients,
   sendCampaignNow
 } from "../controllers/campaignController.js";
 import {
@@ -28,6 +29,7 @@ router.post("/:id/reschedule", rescheduleCampaign);
 router.post("/:id/send-now", sendCampaignNow);
 router.post("/:id/cancel", cancelCampaign);
 router.post("/:id/retry-failed", retryFailedCampaignRecipients);
+router.post("/:id/retry-flagged", retryFlaggedCampaignRecipients);
 router.post("/:id/pause", pauseBulkEmailController);
 router.post("/:id/resume", resumeBulkEmailController);
 

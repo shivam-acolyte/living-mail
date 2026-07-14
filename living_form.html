@@ -1,0 +1,101 @@
+<!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <link rel="canonical" href="{{directFormHtmlUrl}}">
+  <title>Living test 1</title>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+  <script async custom-element="amp-form" src="https://cdn.ampproject.org/v0/amp-form-0.1.js"></script>
+  
+  <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
+  <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
+  <noscript><style amp-boilerplate>body{-webkit-animation:none;animation:none}</style></noscript>
+  <style amp-custom>
+    body{margin:0;background-color:#f8fafc;padding:24px;font-family:Arial, sans-serif;color:#111827}
+    input,textarea,select{font-family:Arial, sans-serif}
+    form.amp-form-submitting .form-content-wrapper,
+    form.amp-form-submit-success .form-content-wrapper {
+      display: none;
+    }
+    [submitting], [submit-success], [submit-error] {
+      display: none;
+    }
+    .prize-announcement {
+      animation: fadeIn 0.5s ease-out forwards;
+      animation-delay: 4s;
+      opacity: 0;
+    }
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+    .hidden {
+      display: none;
+    }
+    @media only screen and (max-width: 600px) {
+      body {
+        padding: 12px !important;
+      }
+      form.hosted-form {
+        padding: 16px !important;
+        border-radius: 6px !important;
+      }
+      form.hosted-form input,
+      form.hosted-form textarea,
+      form.hosted-form select {
+        padding: 10px !important;
+        font-size: 14px !important;
+      }
+      form.hosted-form button[type="submit"] {
+        padding: 11px !important;
+        font-size: 15px !important;
+        margin-top: 16px !important;
+      }
+    }
+    
+    @media only screen and (max-width:480px) {
+      .email-shell{width:100%;max-width:100%}
+      .email-content{width:100%}
+      .email-amp-image{max-width:100%}
+      .hosted-form-banner{max-width:100%}
+    }
+  </style>
+</head>
+<body class="email-bg email-content">
+  <a href="https://acolyteliving.com?utm_source=email&amp;utm_medium=email&amp;utm_campaign={{campaignName}}&amp;utm_id={{templateSlug}}&amp;utm_content=banner_click" target="_blank"><div class="hosted-form-banner" style="width:100%;max-width:600px;margin:0 auto 0;text-align:center"><amp-img src="https://res.cloudinary.com/dpgykcvsj/image/upload/v1780563439/Group_1000002194_1_2_mgsjd1.png" alt="Image" width="600" height="720" layout="responsive"></amp-img></div></a>
+<div style="margin:0 auto;width:100%;max-width:600px;box-sizing:border-box"><div style="height:1px;line-height:1px;background:#e5e7eb;margin:12px 0">&nbsp;</div></div>
+<form class="hosted-form" method="post" action-xhr="{{formActionUrl}}" target="_top" style="margin:0 auto;width:100%;max-width:600px;box-sizing:border-box;background-color:#ffffff;border:1px solid #2563eb;border-radius:8px;padding:24px;font-family:Arial, sans-serif;color:#111827">
+  <div class="form-content-wrapper">
+    <h1 style="margin:0 0 8px;color:#0F52BA;font-size:24px">Find Accomodation</h1>
+    
+    <label style="display:block;margin:14px 0 6px;font-weight:700;color:#020617">Name *</label><input type="text" name="name" placeholder="Enter Your Name" required style="width:100%;box-sizing:border-box;border:1px solid #93C5FD;border-radius:6px;padding:12px;font-size:15px;background:#ffffff;color:#111827"><label style="display:block;margin:14px 0 6px;font-weight:700;color:#020617">Phone No *</label><input type="tel" name="phone" placeholder="Enter Your Phone No" required style="width:100%;box-sizing:border-box;border:1px solid #93C5FD;border-radius:6px;padding:12px;font-size:15px;background:#ffffff;color:#111827">
+    <button type="submit" style="width:100%;margin:20px 0 0;border:0;border-radius:6px;background:#00258f;color:#ffffff;padding:13px;font-size:16px;font-weight:700">Submit</button>
+  </div>
+  
+  <div submit-success>
+    <template type="amp-mustache">
+      <div style="margin:18px 0 0;padding:16px;border-radius:8px;border:1px solid #178218;background:#ffffff;text-align:center">
+    <p style="margin:0 0 6px;color:#047857;font-size:18px;font-weight:800">Thank you</p>
+    <p style="margin:0;color:#064e3b;font-size:14px;font-weight:600;line-height:1.45">Your response was submitted.</p>
+    <div style="text-align:center;margin:14px 0 0"><a href="https://acolyteliving.com?utm_source=email&amp;utm_medium=email&amp;utm_campaign={{campaignName}}&amp;utm_id={{templateSlug}}&amp;utm_content=email_visit_button" target="_blank" rel="noopener" style="display:inline-block;background:#0f766e;color:#ffffff;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:800;line-height:1.2;text-decoration:none">Visit</a></div>
+  </div>
+    </template>
+  </div>
+  <div submit-error>
+    <template type="amp-mustache">
+      <div style="padding:12px;text-align:center">
+        <p style="margin:0;color:#dc2626;font-weight:700">❌ Submission failed. Please try again.</p>
+      </div>
+    </template>
+  </div>
+</form>
+<div style="margin:0 auto;width:100%;max-width:600px;box-sizing:border-box"><div style="height:1px;line-height:1px;background:#e5e7eb;margin:12px 0">&nbsp;</div></div>
+<div style="margin:0 auto;width:100%;max-width:600px;box-sizing:border-box"><div style="font-family:Arial, sans-serif;font-size:12px;color:#6b7280;text-align:center;margin:20px 0 0">
+    
+    
+    <a href="{{unsubscribeUrl}}" target="_blank" style="color:#6b7280;text-decoration:underline">Unsubscribe</a>
+  </div></div>
+</body>
+</html>

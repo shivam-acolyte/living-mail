@@ -277,3 +277,91 @@ ON tracking_events_hourly_summary(
 
 CREATE INDEX IF NOT EXISTS tracking_events_hourly_summary_campaign_idx 
 ON tracking_events_hourly_summary(campaign_name);
+
+CREATE TABLE IF NOT EXISTS scanned_pages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  page INTEGER NOT NULL,
+  scanned_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(page, scanned_date)
+);
+
+CREATE INDEX IF NOT EXISTS scanned_pages_date_page_idx ON scanned_pages(scanned_date, page);
+
+CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  url VARCHAR(255) NOT NULL,
+  secret VARCHAR(255) NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  subscribed_events JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id UUID NOT NULL,
+  event_type VARCHAR(50) NOT NULL,
+  url VARCHAR(255) NOT NULL,
+  request_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  response_status INTEGER,
+  response_body TEXT,
+  error_message TEXT,
+  duration_ms INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS webhook_logs_subscription_id_idx ON webhook_logs(subscription_id);
+CREATE INDEX IF NOT EXISTS webhook_logs_created_at_idx ON webhook_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  name VARCHAR(100),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(255) UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS user_sessions_token_idx ON user_sessions(token);
+
+CREATE TABLE IF NOT EXISTS sender_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) NOT NULL,
+  host VARCHAR(100) NOT NULL,
+  port INTEGER NOT NULL,
+  username VARCHAR(100) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  from_email VARCHAR(100) NOT NULL,
+  from_name VARCHAR(100) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS sender_profiles_user_id_idx ON sender_profiles(user_id);
+
+-- Migration support for existing local tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+CREATE TABLE IF NOT EXISTS blocked_emails (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  reason TEXT NOT NULL DEFAULT 'Admin Blocked',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS blocked_emails_email_idx ON blocked_emails(email);

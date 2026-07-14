@@ -1,5 +1,6 @@
 import Contact from "../models/Contact.js";
 import Tracking from "../models/Tracking.js";
+import BlockedEmail from "../models/BlockedEmail.js";
 
 const SUPPRESSED_CONTACT_STATUSES = ["unsubscribed", "bounced", "complained"];
 
@@ -22,7 +23,7 @@ export const getSuppressedEmailSet = async (emails = []) => {
     return new Set();
   }
 
-  const [trackingSuppressed, contactSuppressed] = await Promise.all([
+  const [trackingSuppressed, contactSuppressed, adminBlocked] = await Promise.all([
     Tracking.distinct("email", {
       email: {
         $in: normalizedEmails
@@ -43,12 +44,18 @@ export const getSuppressedEmailSet = async (emails = []) => {
       status: {
         $in: SUPPRESSED_CONTACT_STATUSES
       }
+    }),
+    BlockedEmail.distinct("email", {
+      email: {
+        $in: normalizedEmails
+      }
     })
   ]);
 
   return new Set([
     ...trackingSuppressed.map(normalizeEmail),
-    ...contactSuppressed.map(normalizeEmail)
+    ...contactSuppressed.map(normalizeEmail),
+    ...adminBlocked.map(normalizeEmail)
   ]);
 };
 

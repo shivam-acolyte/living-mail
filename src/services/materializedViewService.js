@@ -65,7 +65,7 @@ const workerLoop = async () => {
 };
 
 export const startMaterializedViewWorker = () => {
-  if (workerStarted) {
+  if (workerStarted || process.env.DISABLE_MATERIALIZED_VIEW_WORKER === "true") {
     return;
   }
 

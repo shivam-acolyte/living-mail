@@ -7,6 +7,7 @@ import {
   duplicateBulkEmailCampaign,
   rescheduleBulkEmailCampaign,
   retryFailedBulkEmailCampaign,
+  retryFlaggedBulkEmailCampaign,
   sendBulkEmailCampaignNow
 } from "../services/bulkEmailService.js";
 
@@ -91,6 +92,18 @@ export const listCampaigns = async (req, res) => {
   });
 };
 
+const getCampaignTrackingIds = async (campaign) => {
+  const recipients = await BulkEmailRecipient.find({ campaignId: campaign._id }).select("messageId").lean();
+  const messageIds = recipients.map((r) => r.messageId).filter(Boolean);
+
+  if (!messageIds.length) {
+    return [];
+  }
+
+  const sentEvents = await Tracking.find({ messageId: { $in: messageIds }, eventType: "sent" }).select("trackingId").lean();
+  return sentEvents.map((e) => e.trackingId).filter(Boolean);
+};
+
 export const getCampaignStats = async (req, res) => {
   const campaign = await BulkEmailCampaign.findById(req.params.id).lean();
 
@@ -101,9 +114,12 @@ export const getCampaignStats = async (req, res) => {
     });
   }
 
+  const trackingIds = await getCampaignTrackingIds(campaign);
+  const match = trackingIds.length > 0 ? { trackingId: { $in: trackingIds } } : { trackingId: "__none__" };
+
   const eventRows = await Tracking.aggregate([
     {
-      $match: getCampaignTrackingMatch(campaign)
+      $match: match
     },
     {
       $group: {
@@ -155,8 +171,12 @@ export const listCampaignRecipients = async (req, res) => {
     campaignId: req.params.id
   };
 
-  if (req.query.status) {
-    query.status = req.query.status;
+  const statusFilter = req.query.status;
+
+  if (statusFilter && ["delivered", "bounce"].includes(statusFilter)) {
+    query.status = "sent";
+  } else if (statusFilter) {
+    query.status = statusFilter;
   }
 
   const recipients = await BulkEmailRecipient
@@ -165,9 +185,44 @@ export const listCampaignRecipients = async (req, res) => {
     .limit(Math.min(Number(req.query.limit) || 500, 5000))
     .lean();
 
+  if (recipients.length > 0) {
+    const messageIds = recipients.map((r) => r.messageId).filter(Boolean);
+
+    if (messageIds.length > 0) {
+      const trackingEvents = await Tracking.find({
+        messageId: { $in: messageIds },
+        eventType: { $in: ["delivered", "bounce"] }
+      }).select("messageId eventType error bounceType bounceReason").lean();
+
+      const eventMap = new Map();
+      trackingEvents.forEach((evt) => {
+        if (evt.eventType === "bounce" || !eventMap.has(evt.messageId)) {
+          eventMap.set(evt.messageId, evt);
+        }
+      });
+
+      recipients.forEach((rec) => {
+        if (rec.status === "sent" && rec.messageId) {
+          const event = eventMap.get(rec.messageId);
+          if (event) {
+            rec.status = event.eventType;
+            if (event.eventType === "bounce") {
+              rec.error = event.bounceReason || event.error || rec.error;
+            }
+          }
+        }
+      });
+    }
+  }
+
+  let filteredRecipients = recipients;
+  if (statusFilter && ["delivered", "bounce"].includes(statusFilter)) {
+    filteredRecipients = recipients.filter((rec) => rec.status === statusFilter);
+  }
+
   return res.json({
     success: true,
-    recipients
+    recipients: filteredRecipients
   });
 };
 
@@ -181,8 +236,11 @@ export const getCampaignActivity = async (req, res) => {
     });
   }
 
+  const trackingIds = await getCampaignTrackingIds(campaign);
+  const match = trackingIds.length > 0 ? { trackingId: { $in: trackingIds } } : { trackingId: "__none__" };
+
   const activity = await Tracking
-    .find(getCampaignTrackingMatch(campaign))
+    .find(match)
     .sort({ createdAt: -1 })
     .limit(Math.min(Number(req.query.limit) || 500, 5000))
     .lean();
@@ -306,6 +364,30 @@ export const retryFailedCampaignRecipients = async (req, res) => {
     return res.json({
       success: true,
       message: "Failed recipients queued for retry",
+      ...result
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+export const retryFlaggedCampaignRecipients = async (req, res) => {
+  try {
+    const result = await retryFlaggedBulkEmailCampaign(req.params.id);
+
+    if (!result.campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Flagged recipients queued for retry",
       ...result
     });
   } catch (err) {

@@ -232,6 +232,25 @@ export const handleSpinWheelAmpSubmit = async (req, res) => {
         templateSlug
       })
     );
+
+    if (context.email) {
+      const existing = await Tracking.findOne({
+        email: context.email,
+        eventType: "form_submit",
+        "formSubmission.is_spin_wheel": "true"
+      });
+
+      if (existing) {
+        const prizeText = existing.formSubmission?.spin_result || "Prize";
+        return res.json({
+          success: true,
+          prizeLabel: prizeText,
+          prizeCode: prizeText,
+          prizeDesc: "You already spun the wheel!",
+          alreadySpun: true
+        });
+      }
+    }
     const botSignal = getBotSignal(req);
 
     console.log("AMP SPIN WHEEL SUBMIT BODY:", {
@@ -331,6 +350,8 @@ export const handleSpinWheelAmpSubmit = async (req, res) => {
     return res.json({
       success: true,
       prizeLabel: prizeText,
+      prizeCode: prizeText,
+      prizeDesc: "Congratulations, you won!",
       prizeIndex: selectedIndex,
       rotation: targetDegrees
     });
