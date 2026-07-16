@@ -23,7 +23,9 @@ const SUPPORTED_AMP_COMPONENTS = new Set([
   "amp-form",
   "amp-carousel",
   "amp-state",
-  "amp-bind"
+  "amp-bind",
+  "amp-selector",
+  "amp-accordion"
 ]);
 
 const addIssue = (issues, severity, code, message, meta = {}) => {

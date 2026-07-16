@@ -2284,6 +2284,8 @@ const ampDocument = (sourceJson) => {
   const hasMustache = hasBlockType(sourceJson, Array.from(interactiveBlockTypes).filter(t => t !== "spinWheel")) || jsonStr.includes("amp-mustache");
   const hasBind = hasBlockType(sourceJson, "spinWheel") || jsonStr.includes("amp-state") || jsonStr.includes("AMP.setState");
   const hasAnim = hasBlockType(sourceJson, "spinWheel") || jsonStr.includes("amp-anim");
+  const hasAccordion = jsonStr.includes("amp-accordion");
+  const hasSelector = jsonStr.includes("amp-selector");
 
   const carouselScript = hasCarousel
     ? '<script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>'
@@ -2300,6 +2302,12 @@ const ampDocument = (sourceJson) => {
   const animScript = hasAnim
     ? '<script async custom-element="amp-anim" src="https://cdn.ampproject.org/v0/amp-anim-0.1.js"></script>'
     : "";
+  const accordionScript = hasAccordion
+    ? '<script async custom-element="amp-accordion" src="https://cdn.ampproject.org/v0/amp-accordion-0.1.js"></script>'
+    : "";
+  const selectorScript = hasSelector
+    ? '<script async custom-element="amp-selector" src="https://cdn.ampproject.org/v0/amp-selector-0.1.js"></script>'
+    : "";
 
   return `<!doctype html>
 <html ⚡4email data-css-strict>
@@ -2312,6 +2320,8 @@ const ampDocument = (sourceJson) => {
   ${mustacheScript}
   ${bindScript}
   ${animScript}
+  ${accordionScript}
+  ${selectorScript}
   <style amp4email-boilerplate>body{visibility:hidden}</style>
   <style amp-custom>
     body{${style({
@@ -2357,6 +2367,12 @@ const formDocument = (sourceJson) => {
   const jsonStr = JSON.stringify(sourceJson);
   const carouselScript = (hasBlockType(sourceJson, "carousel") || jsonStr.includes("amp-carousel"))
     ? '<script async custom-element="amp-carousel" src="https://cdn.ampproject.org/v0/amp-carousel-0.2.js"></script>'
+    : "";
+  const accordionScript = jsonStr.includes("amp-accordion")
+    ? '<script async custom-element="amp-accordion" src="https://cdn.ampproject.org/v0/amp-accordion-0.1.js"></script>'
+    : "";
+  const selectorScript = jsonStr.includes("amp-selector")
+    ? '<script async custom-element="amp-selector" src="https://cdn.ampproject.org/v0/amp-selector-0.1.js"></script>'
     : "";
   const formBlock = blocks.find((block) => interactiveBlockTypes.has(block.type));
   const bannerBlock = getHostedFormBannerBlock(blocks, formBlock);
@@ -2435,6 +2451,8 @@ const formDocument = (sourceJson) => {
   <script async custom-element="amp-bind" src="https://cdn.ampproject.org/v0/amp-bind-0.1.js"></script>
   <script async custom-element="amp-anim" src="https://cdn.ampproject.org/v0/amp-anim-0.1.js"></script>
   ${carouselScript}
+  ${accordionScript}
+  ${selectorScript}
   <script async custom-template="amp-mustache" src="https://cdn.ampproject.org/v0/amp-mustache-0.2.js"></script>
   <style amp-boilerplate>body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}</style>
   <noscript><style amp-boilerplate>body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}</style></noscript>
