@@ -184,8 +184,14 @@ const shouldTrackHref = (href, baseUrl) => {
     return false;
   }
 
-  if (baseUrl && lowerHref.startsWith(baseUrl.toLowerCase())) {
-    return false;
+  if (baseUrl) {
+    const lowerBaseUrl = baseUrl.toLowerCase();
+    if (
+      lowerHref.startsWith(`${lowerBaseUrl}/track/`) ||
+      lowerHref.startsWith(`${lowerBaseUrl}/api/`)
+    ) {
+      return false;
+    }
   }
 
   return /^https?:\/\//i.test(href);
