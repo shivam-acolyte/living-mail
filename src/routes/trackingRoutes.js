@@ -20,7 +20,7 @@ import {
    abTestAnalytics
 } from "../controllers/analyticsController.js";
 import { syncDeliveryStatusController } from "../controllers/deliveryStatusController.js";
-import formTemplate  from "../templates/formTemplate.js";
+import formTemplate from "../templates/formTemplate.js";
 import AmpTemplate from "../models/AmpTemplate.js";
 import Tracking from "../models/Tracking.js";
 import { renderTrackedFormTemplate } from "../utils/generateAmpTemplate.js";
@@ -228,7 +228,7 @@ router.get("/form/:id", async (req, res) => {
 });
 
 
-router.get("/unsubscribe/:id", unsubscribeHandler );
+router.get("/unsubscribe/:id", unsubscribeHandler);
 
 
 

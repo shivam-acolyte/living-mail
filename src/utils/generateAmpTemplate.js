@@ -184,14 +184,8 @@ const shouldTrackHref = (href, baseUrl) => {
     return false;
   }
 
-  if (baseUrl) {
-    const lowerBaseUrl = baseUrl.toLowerCase();
-    if (
-      lowerHref.startsWith(`${lowerBaseUrl}/track/`) ||
-      lowerHref.startsWith(`${lowerBaseUrl}/api/`)
-    ) {
-      return false;
-    }
+  if (baseUrl && lowerHref.startsWith(baseUrl.toLowerCase())) {
+    return false;
   }
 
   return /^https?:\/\//i.test(href);
@@ -590,10 +584,10 @@ export const renderTrackedTemplate = ({
     ),
     amp: ampWithValues
       ? addAmpTracking(
-          trackLinks(addAmpFormTracking(ampWithValues, values, urls), trackingId, context),
-          template.amp,
-          urls
-        )
+        trackLinks(addAmpFormTracking(ampWithValues, values, urls), trackingId, context),
+        template.amp,
+        urls
+      )
       : "",
     text: template.text
   };
@@ -774,13 +768,13 @@ export const renderTrackedFormTemplate = ({
   const rawFormHtml = templateFormHtml
     ? renderTemplateExpressions(templateFormHtml, values)
     : defaultFormHtml({
-        trackingId,
-        subject,
-        campaignName,
-        campaignType,
-        formActionUrl,
-        values
-      });
+      trackingId,
+      subject,
+      campaignName,
+      campaignType,
+      formActionUrl,
+      values
+    });
 
   const ampFormPage = isAmpFormPage(rawFormHtml);
 

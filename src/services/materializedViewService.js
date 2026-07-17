@@ -73,7 +73,7 @@ export const startMaterializedViewWorker = () => {
   stopRequested = false;
 
   console.log(`Materialized view background refresh worker running every ${REFRESH_INTERVAL_MS}ms`);
-  
+
   // Run first refresh immediately on startup after a small delay to let connections stabilize
   setTimeout(() => {
     workerLoop();

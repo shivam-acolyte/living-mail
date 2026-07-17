@@ -15,11 +15,11 @@ const numberEnv = (name, fallback) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-const MAX_CAMPAIGN_EMAILS = numberEnv("MAX_CAMPAIGN_EMAILS", 100000);
-const DAILY_SENDER_LIMIT = numberEnv("DAILY_SENDER_LIMIT", 25000);
-const BULK_EMAIL_BATCH_SIZE = numberEnv("BULK_EMAIL_BATCH_SIZE", 25);
-const BULK_EMAIL_BATCH_DELAY_MS = numberEnv("BULK_EMAIL_BATCH_DELAY_MS", 2000);
-const BULK_EMAIL_WORKER_INTERVAL_MS = numberEnv("BULK_EMAIL_WORKER_INTERVAL_MS", 10000);
+const MAX_CAMPAIGN_EMAILS = numberEnv("MAX_CAMPAIGN_EMAILS", Infinity);
+const DAILY_SENDER_LIMIT = numberEnv("DAILY_SENDER_LIMIT", Infinity);
+const BULK_EMAIL_BATCH_SIZE = numberEnv("BULK_EMAIL_BATCH_SIZE", Infinity);
+const BULK_EMAIL_BATCH_DELAY_MS = numberEnv("BULK_EMAIL_BATCH_DELAY_MS", 0);
+const BULK_EMAIL_WORKER_INTERVAL_MS = numberEnv("BULK_EMAIL_WORKER_INTERVAL_MS", 0);
 const STALE_LOCK_MS = numberEnv("BULK_EMAIL_STALE_LOCK_MS", 5 * 60 * 1000);
 const BULK_EMAIL_SEND_CONCURRENCY = numberEnv("BULK_EMAIL_SEND_CONCURRENCY", 3);
 const BULK_EMAIL_MAX_RETRY_ATTEMPTS = numberEnv("BULK_EMAIL_MAX_RETRY_ATTEMPTS", 3);
@@ -143,6 +143,9 @@ const getDayStart = () => {
 };
 
 const getRemainingDailyCapacity = async (senderEmail) => {
+  if (DAILY_SENDER_LIMIT === Infinity) {
+    return Infinity;
+  }
   const sentToday = await Tracking.countDocuments({
     senderEmail,
     eventType: "sent",
@@ -154,7 +157,7 @@ const getRemainingDailyCapacity = async (senderEmail) => {
   return Math.max(DAILY_SENDER_LIMIT - sentToday, 0);
 };
 
-const enqueueCampaign = async () => {};
+const enqueueCampaign = async () => { };
 
 export const createBulkEmailCampaign = async ({
   recipients,
@@ -219,7 +222,7 @@ export const createBulkEmailCampaign = async ({
     if (isAbTest) {
       recipientVars.abVariant = idx % 2 === 0 ? "A" : "B";
     }
-    
+
     const isExcluded = excludedSet.has(recipient.email.toLowerCase().trim());
     return {
       campaignId: campaign._id,
@@ -528,7 +531,7 @@ const releaseStaleLocks = async (campaignId) => {
 };
 
 const claimRecipients = async (campaignId, limit) => {
-  const recipients = await BulkEmailRecipient
+  let query = BulkEmailRecipient
     .find({
       campaignId,
       status: "pending",
@@ -538,9 +541,13 @@ const claimRecipients = async (campaignId, limit) => {
         { nextAttemptAt: { $lte: new Date() } }
       ]
     })
-    .sort({ createdAt: 1 })
-    .limit(limit)
-    .lean();
+    .sort({ createdAt: 1 });
+
+  if (Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const recipients = await query.lean();
 
   if (!recipients.length) {
     return [];
@@ -686,7 +693,7 @@ const processRecipient = async (recipient, campaign) => {
   let templateId = campaign.templateId;
   let templateSlug = campaign.templateSlug;
   let preheader = campaign.variables?.preheader;
-  
+
   const abVariant = recipient.variables?.abVariant;
   const abTest = campaign.variables?.abTest;
 
@@ -844,7 +851,9 @@ const processCampaign = async (campaign) => {
   );
 
   await refreshCampaignCounts(campaign._id);
-  await sleep(BULK_EMAIL_BATCH_DELAY_MS);
+  if (BULK_EMAIL_BATCH_DELAY_MS > 0) {
+    await sleep(BULK_EMAIL_BATCH_DELAY_MS);
+  }
 
   const latestCampaign = await BulkEmailCampaign.findById(campaign._id).lean();
   const pendingCount = await BulkEmailRecipient.countDocuments({

@@ -63,7 +63,7 @@ const getActiveSenderProfileTransporter = async (senderEmail, userId) => {
     const activeProfile = await SenderProfile.findOne(query).lean();
     if (activeProfile) {
       const profileIdStr = String(activeProfile.id || activeProfile._id);
-      
+
       const configHash = JSON.stringify({
         host: activeProfile.host,
         port: activeProfile.port,
@@ -177,25 +177,25 @@ const sendTrackingEmail = async (
 
     const renderedTemplate = savedTemplate
       ? renderTrackedTemplate({
-          template: savedTemplate,
-          trackingId,
-          email: userEmail,
-          subject,
-          campaignName,
-          campaignType,
-          variables: options.variables
-        })
+        template: savedTemplate,
+        trackingId,
+        email: userEmail,
+        subject,
+        campaignName,
+        campaignType,
+        variables: options.variables
+      })
       : null;
     const renderedFormHtml = savedTemplate?.formHtml
       ? renderTrackedFormTemplate({
-          template: savedTemplate,
-          trackingId,
-          email: userEmail,
-          subject,
-          campaignName,
-          campaignType,
-          variables: options.variables
-        })
+        template: savedTemplate,
+        trackingId,
+        email: userEmail,
+        subject,
+        campaignName,
+        campaignType,
+        variables: options.variables
+      })
       : "";
 
     const activeProfileData = await getActiveSenderProfileTransporter(options.senderEmail, options.userId);

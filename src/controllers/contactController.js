@@ -6,6 +6,7 @@ import {
   resolveContactsForSegment,
   upsertContact
 } from "../services/contactService.js";
+import { postgres } from "../config/postgres.js";
 
 const parseArray = (value) => {
   if (Array.isArray(value)) {
@@ -275,18 +276,39 @@ export const createContactList = async (req, res) => {
 };
 
 export const listContactLists = async (req, res) => {
-  const lists = await ContactList
-    .find({ isActive: true })
-    .sort({ createdAt: -1 })
-    .lean();
+  try {
+    const { rows } = await postgres.query(`
+      SELECT 
+        id, 
+        mongo_id AS "mongoId",
+        name, 
+        description, 
+        tags, 
+        is_active AS "isActive", 
+        created_at AS "createdAt", 
+        updated_at AS "updatedAt", 
+        cardinality(COALESCE(contact_ids, '{}')) AS "contactCount"
+      FROM contact_lists 
+      WHERE is_active = true 
+      ORDER BY created_at DESC
+    `);
 
-  return res.json({
-    success: true,
-    lists: lists.map((list) => ({
-      ...list,
-      contactCount: list.contactIds?.length || 0
-    }))
-  });
+    const lists = rows.map(row => ({
+      ...row,
+      _id: row.id
+    }));
+
+    return res.json({
+      success: true,
+      lists
+    });
+  } catch (err) {
+    console.error("Failed to list contact lists:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
 };
 
 export const addContactsToList = async (req, res) => {
