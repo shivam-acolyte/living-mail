@@ -1,7 +1,5 @@
 import express from "express";
 
-import { sendEmailController }
-from "../controllers/emailController.js";
 import {
    createBulkEmailController,
    createBulkEmailImportController,
@@ -9,6 +7,8 @@ import {
    pauseBulkEmailController,
    previewBulkEmailImportController,
    resumeBulkEmailController,
+   sendEmailController,
+   sendWelcomeEmailController,
    thankYou
 } from "../controllers/emailController.js";
 import { requireAuth } from "../middleware/authMiddleware.js";
@@ -19,6 +19,11 @@ router.post(
    "/send-email",
    requireAuth,
    sendEmailController
+);
+
+router.post(
+   "/send-welcome-email",
+   sendWelcomeEmailController
 );
 
 router.post(

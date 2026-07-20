@@ -7,7 +7,7 @@ import {
   pauseBulkEmailCampaign,
   resumeBulkEmailCampaign
 } from "../services/bulkEmailService.js";
-import { resolveRecipients } from "../services/contactService.js";
+import { resolveRecipients, upsertContact } from "../services/contactService.js";
 import SenderProfile from "../models/SenderProfile.js";
 import {
   importRecipientsFromSource,
@@ -384,3 +384,103 @@ export const thankYou = async (req, res) => {
   `);
 
 }
+
+export const sendWelcomeEmailController = async (req, res) => {
+   try {
+      const {
+         email,
+         subject,
+         campaignName,
+         campaignType,
+         templateId,
+         templateSlug,
+         variables,
+         replyTo,
+         replyToEmail,
+         firstName,
+         lastName,
+         phone,
+         company,
+         tags
+      } = req.body || {};
+
+      if (!email) {
+         return res.status(400).json({
+            success: false,
+            message: "Email is required"
+         });
+      }
+
+      const contactTags = Array.isArray(tags) ? [...tags, "website-signup"] : ["website-signup"];
+
+      // Upsert the contact record in database
+      await upsertContact({
+         email,
+         firstName,
+         lastName,
+         phone,
+         company,
+         tags: contactTags,
+         source: "website"
+      });
+
+      // Find an active SMTP sender profile
+      let activeProfile = await SenderProfile.findOne({ isActive: true }).lean();
+      if (!activeProfile) {
+         // Fallback to any sender profile if none are specifically active
+         activeProfile = await SenderProfile.findOne().lean();
+      }
+
+      if (!activeProfile) {
+         return res.status(400).json({
+            success: false,
+            message: "No active SMTP profile configured. Please set up an SMTP profile in SMTP Settings."
+         });
+      }
+
+      const mergedVariables = {
+         firstName,
+         lastName,
+         phone,
+         company,
+         ...(variables || {})
+      };
+
+      await sendTrackingEmail(
+         email,
+         subject || "Welcome!",
+         campaignName || "Welcome Campaign",
+         campaignType || "welcome",
+         {
+            templateId,
+            templateSlug,
+            variables: mergedVariables,
+            senderEmail: activeProfile.fromEmail,
+            userId: activeProfile.userId,
+            replyTo: replyTo || replyToEmail || activeProfile.fromEmail
+         }
+      );
+
+      res.json({
+         success: true,
+         message: "Welcome email sent"
+      });
+
+   } catch (error) {
+      console.error("Welcome email send error:", error);
+
+      if (error instanceof SuppressedEmailError || error?.code === "EMAIL_SUPPRESSED") {
+         return res.status(200).json({
+            success: true,
+            skipped: true,
+            message: "Welcome email not sent because recipient is unsubscribed or suppressed"
+         });
+      }
+
+      res.status(500).json({
+         success: false,
+         message: error.message,
+         error: error.message
+      });
+   }
+};
