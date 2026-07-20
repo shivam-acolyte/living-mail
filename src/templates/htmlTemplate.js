@@ -443,7 +443,7 @@ figure.table table th {
             <table width="100%" align="center" style="margin-top: 12px;">
                 <tbody>
                     <tr>
-                        <td width="100%" align="center"> <a style="margin-left: auto; margin-right: auto; color: grey; font-size: 12px; text-decoration: underline;" href="${baseUrl}/track/unsubscribe/${trackingId}">Unsubscribe</a>                            </td>
+                        <td width="100%" align="center"> <a style="display: inline-block; padding: 8px 16px; background-color: #2563eb; color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 6px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);" href="${baseUrl}/track/unsubscribe/${trackingId}">Unsubscribe</a>                            </td>
                     </tr>
                 </tbody>
             </table><img border="0" width="1" height="1" alt="" src="https://sp-t1.mmtrkr.com/q/HqS1sy5U2Fd7Ut6r5ErJLQ~~/AASgtxA~/icSgsZRgYjbBEXZRScckeMXVikCd5EpAQ0spk2z4qR9NcRVFcvsFXwPN1bWAiiE06P2I_w2MpCA8FsIHJr7htA~~">

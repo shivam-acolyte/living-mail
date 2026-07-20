@@ -147,7 +147,7 @@ const ampTemplate = (trackingId, subject, campaignName, campaignType) => {
   <table width="100%" align="center" style="margin-top: 12px;">
     <tr>
       <td align="center">
-        <a style="color: grey; font-size: 12px; text-decoration: underline;" href="${baseUrl}/track/unsubscribe/${trackingId}">Unsubscribe</a>
+        <a style="display: inline-block; padding: 8px 16px; background-color: #2563eb; color: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 6px;" href="${baseUrl}/track/unsubscribe/${trackingId}">Unsubscribe</a>
       </td>
     </tr>
   </table>

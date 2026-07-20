@@ -229,6 +229,7 @@ router.get("/form/:id", async (req, res) => {
 
 
 router.get("/unsubscribe/:id", unsubscribeHandler);
+router.post("/unsubscribe/:id", unsubscribeHandler);
 
 
 

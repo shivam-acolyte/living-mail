@@ -403,7 +403,7 @@ const addHtmlTracking = (html, originalTemplate, urls) => {
   if (!hasTrackingToken(originalTemplate, "unsubscribeUrl", urls.unsubscribeUrl)) {
     nextHtml = injectBeforeBodyEnd(
       nextHtml,
-      `<div class="tracking-footer"><a href="${urls.unsubscribeUrl}">Unsubscribe</a></div>`
+      `<div class="tracking-footer" style="text-align:center;margin-top:16px;"><a href="${urls.unsubscribeUrl}" style="display:inline-block;padding:8px 16px;background-color:#2563eb;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:6px;box-shadow:0 2px 4px rgba(37,99,235,0.2);">Unsubscribe</a></div>`
     );
   }
 
@@ -423,7 +423,7 @@ const addAmpTracking = (amp, originalTemplate, urls) => {
   if (!hasTrackingToken(originalTemplate, "unsubscribeUrl", urls.unsubscribeUrl)) {
     nextAmp = injectBeforeBodyEnd(
       nextAmp,
-      `<div style="text-align:center;font-size:12px;margin-top:16px;"><a href="${urls.unsubscribeUrl}">Unsubscribe</a></div>`
+      `<div style="text-align:center;margin-top:16px;"><a href="${urls.unsubscribeUrl}" style="display:inline-block;padding:8px 16px;background-color:#2563eb;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;border-radius:6px;">Unsubscribe</a></div>`
     );
   }
 

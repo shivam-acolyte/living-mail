@@ -229,7 +229,9 @@ const sendTrackingEmail = async (
         "Your email client does not support HTML or AMP emails.",
 
       headers: {
-        "X-Tracking-Id": trackingId
+        "X-Tracking-Id": trackingId,
+        "List-Unsubscribe": `<${(process.env.API_URL || "http://localhost:5000").replace(/\/$/, "")}/track/unsubscribe/${trackingId}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
       },
 
       html:
