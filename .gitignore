@@ -14,5 +14,5 @@ public/template-assets/**/*
 !public/template-assets/**/
 !public/template-assets/**/.gitkeep
 !public/template-assets/social-logos/*.svg
-!public/template-assets/images/livinglogo.png
+!public/template-assets/images/**/*
 
